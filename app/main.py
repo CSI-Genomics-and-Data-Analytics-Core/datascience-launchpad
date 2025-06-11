@@ -498,10 +498,12 @@ async def stop_rstudio_instance(
             ["docker", "stop", container_name], capture_output=True, text=True
         )
         if stop_result.returncode == 0:
-            logging.info(f"Successfully stopped container: {container_name}")
+            logging.info(
+                f"Successfully stopped container: {container_name}. It will be auto-removed due to --rm flag."
+            )
         elif "No such container" in stop_result.stderr:
             logging.info(
-                f"Container {container_name} already stopped or did not exist (stop command)."
+                f"Container {container_name} already stopped/removed or did not exist (stop command)."
             )
         else:
             logging.error(
@@ -509,24 +511,7 @@ async def stop_rstudio_instance(
             )
             docker_errors.append(f"Failed to stop: {stop_result.stderr.strip()}")
 
-        # Attempt to remove the container, regardless of stop outcome
-        logging.info(
-            f"Attempting to remove container: {container_name} (Instance ID: {instance_id})"
-        )
-        rm_result = subprocess.run(
-            ["docker", "rm", container_name], capture_output=True, text=True
-        )
-        if rm_result.returncode == 0:
-            logging.info(f"Successfully removed container: {container_name}")
-        elif "No such container" in rm_result.stderr:
-            logging.info(
-                f"Container {container_name} already removed or did not exist (rm command)."
-            )
-        else:
-            logging.error(
-                f"Error removing container {container_name}: {rm_result.stderr.strip()}"
-            )
-            docker_errors.append(f"Failed to remove: {rm_result.stderr.strip()}")
+        # Removed explicit 'docker rm' section as containers are started with --rm
 
         # Update the database status to 'stopped'
         db.execute(
@@ -539,13 +524,12 @@ async def stop_rstudio_instance(
         )
 
         if docker_errors:
-            # db.close() # db will be closed in finally
             combined_error_message = ". ".join(docker_errors)
             logging.error(
-                f"Docker operations for {container_name} (Instance ID: {instance_id}) resulted in errors: {combined_error_message}"
+                f"Docker stop operation for {container_name} (Instance ID: {instance_id}) resulted in errors: {combined_error_message}"
             )
             error_message = quote(
-                f"Error(s) during stop/remove of RStudio instance '{container_name}': {combined_error_message}. The instance record has been marked as 'stopped'."
+                f"Error(s) during stop of RStudio instance '{container_name}': {combined_error_message}. The instance record has been marked as 'stopped'."
             )
             return RedirectResponse(
                 url=f"/dashboard?error={error_message}",
@@ -553,20 +537,17 @@ async def stop_rstudio_instance(
             )
 
         logging.info(
-            f"Successfully processed stop/remove for {container_name} (Instance ID: {instance_id})."
+            f"Successfully processed stop for {container_name} (Instance ID: {instance_id}). Container will be auto-removed."
         )
-        # db.close() # db will be closed in finally
         success_message = quote(
-            f"Instance '{container_name}' stopped and associated container removed successfully."
+            f"Instance '{container_name}' stopped successfully. The container will be automatically removed."
         )
         return RedirectResponse(
             url=f"/dashboard?message={success_message}",
             status_code=status.HTTP_302_FOUND,
         )
 
-    except (
-        HTTPException
-    ) as e:  # Should not be hit if specific HTTPExceptions are handled by redirecting
+    except HTTPException as e:  # Catch any other HTTPExceptions
         # This is a safeguard. Ideally, all user-facing HTTPExceptions are converted to redirects.
         # If one is raised and not caught before this, log it and redirect.
         logging.error(
