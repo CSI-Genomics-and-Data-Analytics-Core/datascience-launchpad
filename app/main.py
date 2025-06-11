@@ -685,33 +685,37 @@ async def logout(request: Request):
 
 # --- Admin (very basic, expand significantly) ---
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(
-    request: Request, current_user: dict = Depends(get_current_active_user)
-):
-    if not current_user or not current_user["is_admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized for admin panel",
-        )
+async def admin_dashboard(request: Request, db: sqlite3.Connection = Depends(get_db)):
+    if not request.session.get("is_admin"):
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
-    db = get_db()
-    all_users = db.execute("SELECT id, username, is_admin FROM users").fetchall()
-    all_instances = db.execute(
-        """
-        SELECT ri.*, u.username
-        FROM rstudio_instances ri
-        JOIN users u ON ri.user_id = u.id
-    """
-    ).fetchall()
-    db.close()
+    users_cursor = db.execute("SELECT id, username, is_admin FROM users")
+    users = users_cursor.fetchall()
+
+    instances_cursor = db.execute(
+        "SELECT i.id, u.username, i.container_name, i.container_id, i.port, i.status, i.created_at, i.expires_at, i.stopped_at FROM rstudio_instances i JOIN users u ON i.user_id = u.id"
+    )
+    instances_raw = instances_cursor.fetchall()
+    instances = []
+    for inst_raw in instances_raw:
+        inst = dict(inst_raw)  # Convert row to dict for easier manipulation
+        if inst["created_at"] and isinstance(inst["created_at"], str):
+            inst["created_at"] = datetime.strptime(
+                inst["created_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
+            )
+        if inst["expires_at"] and isinstance(inst["expires_at"], str):
+            inst["expires_at"] = datetime.strptime(
+                inst["expires_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
+            )
+        if inst["stopped_at"] and isinstance(inst["stopped_at"], str):
+            inst["stopped_at"] = datetime.strptime(
+                inst["stopped_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
+            )
+        instances.append(inst)
+
     return templates.TemplateResponse(
         "admin_dashboard.html",
-        {
-            "request": request,
-            "users": all_users,
-            "instances": all_instances,
-            "title": "Admin Dashboard",
-        },
+        {"request": request, "users": users, "instances": instances},
     )
 
 

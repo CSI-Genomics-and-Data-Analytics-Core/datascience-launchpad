@@ -25,6 +25,7 @@
       <th>Status</th>
       <th>Created At</th>
       <th>Expires At</th>
+      <th>Stopped At</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -38,12 +39,16 @@
       <td>{{ instance.port if instance.port else 'N/A' }}</td>
       <td>{{ instance.status }}</td>
       <td>
-        {{ instance.created_at.split('.')[0] if instance.created_at else 'N/A'
-        }}
+        {{ instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if
+        instance.created_at else 'N/A' }}
       </td>
       <td>
-        {{ instance.expires_at.split('.')[0] if instance.expires_at else 'N/A'
-        }}
+        {{ instance.expires_at.strftime('%Y-%m-%d %H:%M:%S') if
+        instance.expires_at else 'N/A' }}
+      </td>
+      <td>
+        {{ instance.stopped_at.strftime('%Y-%m-%d %H:%M:%S') if
+        instance.stopped_at else 'N/A' }}
       </td>
       <td>
         {% if instance.status == 'running' %}
@@ -53,7 +58,7 @@
           style="display: inline"
         >
           <input type="hidden" name="admin_stop" value="true" />
-          <button type="submit">Stop</button>
+          <button type="submit" class="btn btn-warning btn-sm">Stop</button>
         </form>
         {% endif %}
         <form
@@ -61,7 +66,7 @@
           action="{{ url_for('delete_rstudio_instance', instance_id=instance.id) }}"
           style="display: inline"
         >
-          <button type="submit">Delete</button>
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
         </form>
       </td>
     </tr>
