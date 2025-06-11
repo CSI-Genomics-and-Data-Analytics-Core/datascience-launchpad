@@ -850,7 +850,15 @@ async def admin_dashboard(
                       i.created_at, i.expires_at, i.status, i.stopped_at
                FROM rstudio_instances i
                JOIN users u ON i.user_id = u.id
-               ORDER BY i.created_at DESC"""
+               ORDER BY
+                 CASE i.status
+                   WHEN 'running' THEN 1
+                   WHEN 'requested' THEN 2
+                   WHEN 'stopped' THEN 3
+                   WHEN 'error' THEN 4
+                   ELSE 5
+                 END,
+                 i.created_at DESC"""
         )
         instances_raw = instances_cursor.fetchall()
 
