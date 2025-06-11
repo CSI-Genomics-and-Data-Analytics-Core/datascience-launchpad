@@ -355,15 +355,13 @@ async def request_rstudio_instance(
             RSTUDIO_DEFAULT_CPUS,  # Use configured CPUs
             "-e",
             f"PASSWORD={rstudio_password}",
-            "-e",
-            "USER=rstudio",  # Default user in rocker/rstudio
             "-v",
             f"{user_specific_data_dir.resolve()}:/home/rstudio",
             "--rm",
             "-p",
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
             "-e",
-            f"USER={username}",
+            f"USER={username}",  # Sets the RStudio user to the portal username
             RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
         # Add storage limit if specified and not empty
