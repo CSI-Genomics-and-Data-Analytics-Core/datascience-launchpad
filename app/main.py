@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, Form, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.concurrency import run_in_threadpool  # Added import
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -968,6 +967,11 @@ async def admin_dashboard(
     request: Request,
     current_user: dict = Depends(get_current_active_user),
 ):
+    """
+    Admin dashboard that displays all users and their RStudio instances.
+    Simplified version with direct database access (no threading).
+    """
+    # Check if user is admin
     if not current_user["is_admin"]:
         error_message = quote("You are not authorized to access this page.")
         return RedirectResponse(
@@ -975,151 +979,147 @@ async def admin_dashboard(
             status_code=status.HTTP_302_FOUND,
         )
 
-    def _get_admin_data():
-        conn = None
-        try:
-            conn = sqlite3.connect(str(DATABASE))
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, username, is_admin, created_at, lab_name FROM users ORDER BY id"
-            )
-            users_data = cursor.fetchall()
-            instances_query = """
-                SELECT id, user_id, container_name, container_id, port, password,
-                       created_at, expires_at, status, stopped_at
-                FROM rstudio_instances
-                ORDER BY
-                    CASE status
-                        WHEN 'running' THEN 1
-                        WHEN 'requested' THEN 2
-                        WHEN 'stopped' THEN 3
-                        WHEN 'error' THEN 4
-                        ELSE 5
-                    END,
-                    created_at DESC
+    try:
+        # Connect to database
+        db = get_db()
+
+        # Get all users
+        users_data = db.execute(
+            "SELECT id, username, is_admin, created_at, lab_name FROM users ORDER BY id"
+        ).fetchall()
+
+        # Get all instances with ordered status
+        instances_data = db.execute(
             """
-            instances_cursor = cursor.execute(instances_query)
-            instances_data = instances_cursor.fetchall()
-            users_list = []
-            for u_row in users_data:
-                user_dict = dict(u_row)
-                user_dict["lab_name"] = u_row["lab_name"]
-                if user_dict.get("created_at"):
-                    raw_created_at = user_dict["created_at"]
-                    if isinstance(raw_created_at, str):
+            SELECT id, user_id, container_name, container_id, port, password,
+                   created_at, expires_at, status, stopped_at
+            FROM rstudio_instances
+            ORDER BY
+                CASE status
+                    WHEN 'running' THEN 1
+                    WHEN 'requested' THEN 2
+                    WHEN 'stopped' THEN 3
+                    WHEN 'error' THEN 4
+                    ELSE 5
+                END,
+                created_at DESC
+        """
+        ).fetchall()
+
+        # Process users data
+        users_list = []
+        for user_row in users_data:
+            user_dict = dict(user_row)
+
+            # Process created_at date for each user
+            if user_dict.get("created_at"):
+                raw_created_at = user_dict["created_at"]
+                if isinstance(raw_created_at, str):
+                    try:
+                        user_dict["created_at"] = datetime.fromisoformat(
+                            raw_created_at.replace(" ", "T")
+                        )
+                    except ValueError:
                         try:
-                            user_dict["created_at"] = datetime.fromisoformat(
-                                raw_created_at.replace(" ", "T")
+                            user_dict["created_at"] = datetime.strptime(
+                                raw_created_at, "%Y-%m-%d %H:%M:%S.%f"
                             )
                         except ValueError:
                             try:
                                 user_dict["created_at"] = datetime.strptime(
-                                    raw_created_at, "%Y-%m-%d %H:%M:%S.%f"
+                                    raw_created_at, "%Y-%m-%d %H:%M:%S"
                                 )
                             except ValueError:
-                                try:
-                                    user_dict["created_at"] = datetime.strptime(
-                                        raw_created_at, "%Y-%m-%d %H:%M:%S"
-                                    )
-                                except ValueError:
-                                    logger.warning(
-                                        f"Could not parse created_at for user {user_dict['id']}: {raw_created_at}"
-                                    )
-                                    user_dict["created_at"] = None
-                    elif not isinstance(raw_created_at, datetime):
-                        logger.warning(
-                            f"Unexpected type for created_at for user {user_dict['id']}: {type(raw_created_at)}"
+                                logger.warning(
+                                    f"Could not parse created_at for user {user_dict['id']}: {raw_created_at}"
+                                )
+                                user_dict["created_at"] = None
+                elif not isinstance(raw_created_at, datetime):
+                    logger.warning(
+                        f"Unexpected type for created_at for user {user_dict['id']}: {type(raw_created_at)}"
+                    )
+                    user_dict["created_at"] = None
+
+            users_list.append(user_dict)
+
+        # Process instances data
+        processed_instances = []
+        for instance_row in instances_data:
+            instance_dict = dict(instance_row)
+
+            # Process date fields for each instance
+            for field in ["created_at", "expires_at", "stopped_at"]:
+                value = instance_dict.get(field)
+                if value and isinstance(value, str):
+                    try:
+                        instance_dict[field] = datetime.fromisoformat(
+                            value.replace(" ", "T")
                         )
-                        user_dict["created_at"] = None
-                users_list.append(user_dict)
-            processed_instances = []
-            for raw_instance in instances_data:
-                instance_dict = dict(raw_instance)
-                for field in ["created_at", "expires_at", "stopped_at"]:
-                    value = instance_dict.get(field)
-                    if value and isinstance(value, str):
+                    except ValueError:
                         try:
-                            instance_dict[field] = datetime.fromisoformat(
-                                value.replace(" ", "T")
+                            instance_dict[field] = datetime.strptime(
+                                value, "%Y-%m-%d %H:%M:%S"
                             )
                         except ValueError:
-                            try:
-                                instance_dict[field] = datetime.strptime(
-                                    value, "%Y-%m-%d %H:%M:%S"
-                                )
-                            except ValueError as e_strptime:
-                                logging.warning(
-                                    f"Admin Dashboard: Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Error: {e_strptime}. Setting to None."
-                                )
-                                instance_dict[field] = None
-                    elif not isinstance(value, datetime) and value is not None:
-                        logging.warning(
-                            f"Admin Dashboard: Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
-                        )
-                        instance_dict[field] = None
-                processed_instances.append(instance_dict)
-            base_url = str(request.base_url).rstrip("/")
-            return users_list, processed_instances, base_url
-        finally:
-            if conn:
-                conn.close()
+                            logging.warning(
+                                f"Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
+                            )
+                            instance_dict[field] = None
+                elif not isinstance(value, datetime) and value is not None:
+                    logging.warning(
+                        f"Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
+                    )
+                    instance_dict[field] = None
 
-    try:
-        # Call _get_admin_data() function first to get the data function, not the coroutine
-        data_function = _get_admin_data
-        # Now use run_in_threadpool with the function result
-        result = await run_in_threadpool(data_function)
-        users, instances, base_url = result
+            processed_instances.append(instance_dict)
+
+        # Get base URL for RStudio links
+        base_url = str(request.base_url).rstrip("/")
+
+        # Close database connection
+        db.close()
+
+        # Render template with all data
         return templates.TemplateResponse(
             "admin_dashboard.html",
             {
                 "request": request,
                 "user": current_user,
-                "users": users,
-                "instances": instances,
+                "users": users_list,
+                "instances": processed_instances,
                 "base_url": base_url,
                 "title": "Admin Dashboard",
             },
         )
-    except sqlite3.Error as e_sqlite:
-        logging.error(f"Database error in admin_dashboard: {e_sqlite}", exc_info=True)
+
+    except sqlite3.Error as db_error:
+        # Handle database errors
+        logging.error(f"Database error in admin_dashboard: {db_error}", exc_info=True)
         error_message = quote(
             "A database error occurred while loading the admin dashboard."
         )
         return RedirectResponse(
-            url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
+            url=f"/dashboard?error={error_message}",
             status_code=status.HTTP_302_FOUND,
         )
-    except Exception:
-        # Completely avoid referencing e_general in any string formatting
-        logging.error(
-            "Unexpected error in admin_dashboard. See traceback:", exc_info=True
-        )
 
-        # Hard-code a simple error message for the redirect
-        error_message = "unexpected_error_occurred"
+    except Exception:
+        # Handle general errors
+        logging.error("Unexpected error in admin_dashboard:", exc_info=True)
+
         try:
-            # Use a simple string that won't cause any issues with formatting
-            error_text = (
+            # Prepare error message for redirect
+            error_message = quote(
                 "An unexpected error occurred while trying to load the admin page."
             )
-            import urllib.parse
+        except Exception:
+            # Fallback if quoting fails
+            error_message = "unexpected_error_occurred"
 
-            error_message = urllib.parse.quote(error_text)
-        except Exception as quote_error:
-            # If even this fails, use the hard-coded fallback
-            logging.error(
-                f"Failed to encode error message for redirect: {quote_error}",
-                exc_info=True,
-            )
-
-        # Simple redirect with minimal string operations
         return RedirectResponse(
             url=f"/dashboard?error={error_message}",
             status_code=status.HTTP_302_FOUND,
         )
-    # The finally block for db.close() is removed from here as it's handled within _get_admin_data
 
 
 if __name__ == "__main__":
