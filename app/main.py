@@ -320,8 +320,14 @@ async def request_rstudio_instance(
         host_port += 1
         if host_port > RSTUDIO_MAX_PORT:  # Use configured max port
             db.close()
-            raise HTTPException(
-                status_code=500, detail="No available ports for RStudio."
+            # OLD: raise HTTPException(status_code=500, detail="No available ports for RStudio.")
+            # NEW: Redirect with error
+            error_message = quote(
+                "No available ports for RStudio. Please try again later or contact an administrator."
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
             )
 
     user_specific_data_dir = USER_DATA_BASE_DIR / username
@@ -400,8 +406,30 @@ async def request_rstudio_instance(
             logging.error(
                 f"Failed to start RStudio container {container_name}. Error: {e.stderr}"
             )
-            raise HTTPException(
-                status_code=500, detail=f"Failed to start RStudio container: {e.stderr}"
+            # Attempt to update DB status to 'error'
+            db_update_error = get_db()
+            try:
+                db_update_error.execute(
+                    "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                    (instance_id,),
+                )
+                db_update_error.commit()
+                logging.info(
+                    f"Instance {instance_id} status updated to 'error' after subprocess failure."
+                )
+            except Exception as db_err_inner:
+                logging.error(
+                    f"Failed to update instance {instance_id} to status 'error' after subprocess failure: {db_err_inner}"
+                )
+            finally:
+                db_update_error.close()
+
+            error_message = quote(
+                f"Failed to start RStudio container: {e.stderr.strip()}"
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
             )
 
     except Exception as e:
@@ -412,11 +440,22 @@ async def request_rstudio_instance(
         )
         db_exc.commit()
         db_exc.close()
-        raise HTTPException(
-            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
+        logging.error(
+            f"Unexpected error in request_rstudio_instance for instance {instance_id}: {str(e)}",
+            exc_info=True,
+        )
+        error_message = quote(
+            f"An unexpected error occurred while preparing your RStudio instance: {str(e)}"
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
         )
 
-    return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(
+        url="/dashboard?message="
+        + quote(f"RStudio instance '{container_name}' is being prepared."),
+        status_code=status.HTTP_302_FOUND,
+    )
 
 
 @app.post("/stop_rstudio/{instance_id}")
@@ -426,6 +465,9 @@ async def stop_rstudio_instance(
     current_user: dict = Depends(get_current_active_user),
 ):
     db = None  # Initialize db to None for robust finally block
+    instance_container_name_for_logging = (
+        "N/A"  # For logging in case instance fetch fails
+    )
     try:
         db = get_db()
         instance = db.execute(
@@ -434,11 +476,18 @@ async def stop_rstudio_instance(
         ).fetchone()
 
         if not instance or not instance["container_name"]:
-            raise HTTPException(
-                status_code=404, detail="Instance not found or not authorized"
+            if db:  # Close connection if open
+                db.close()
+            error_message = quote(
+                "Instance not found or you are not authorized to stop it."
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
             )
 
         container_name = instance["container_name"]
+        instance_container_name_for_logging = container_name  # Set for logging
         docker_errors = []  # To collect messages from Docker command failures
 
         # Attempt to stop the container
@@ -490,56 +539,95 @@ async def stop_rstudio_instance(
         )
 
         if docker_errors:
+            # db.close() # db will be closed in finally
             combined_error_message = ". ".join(docker_errors)
             logging.error(
                 f"Docker operations for {container_name} (Instance ID: {instance_id}) resulted in errors: {combined_error_message}"
             )
-            # Quote the message for URL safety if you plan to pass it as a query parameter
-            # For now, just raising with the detail.
-            raise HTTPException(
-                status_code=500,  # Or a more specific client error if appropriate
-                detail=f"Error(s) during stop/remove of RStudio instance '{container_name}': {combined_error_message}. The instance record has been marked as 'stopped'.",
+            error_message = quote(
+                f"Error(s) during stop/remove of RStudio instance '{container_name}': {combined_error_message}. The instance record has been marked as 'stopped'."
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
             )
 
         logging.info(
             f"Successfully processed stop/remove for {container_name} (Instance ID: {instance_id})."
         )
+        # db.close() # db will be closed in finally
+        success_message = quote(
+            f"Instance '{container_name}' stopped and associated container removed successfully."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?message={success_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
-    except HTTPException:
-        # Re-raise HTTPExceptions that were intentionally raised (e.g., from docker_errors or initial checks)
-        raise
+    except (
+        HTTPException
+    ) as e:  # Should not be hit if specific HTTPExceptions are handled by redirecting
+        # This is a safeguard. Ideally, all user-facing HTTPExceptions are converted to redirects.
+        # If one is raised and not caught before this, log it and redirect.
+        logging.error(
+            f"Unexpected HTTPException during stop/remove for instance ID {instance_id}: {str(e)}",
+            exc_info=True,
+        )
+        error_message = quote(
+            "An unexpected issue occurred. Please check the dashboard for status."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+        )
     except Exception as e:
         # Catch any other unexpected Python errors
         logging.error(
-            f"Unexpected Python error during stop/remove of container for instance ID {instance_id} (name: {instance.get('container_name', 'N/A') if instance else 'N/A'}): {str(e)}",
+            f"Unexpected Python error during stop/remove of container for instance ID {instance_id} (name: {instance_container_name_for_logging}): {str(e)}",
             exc_info=True,  # Log full traceback
         )
         # Attempt to update DB status to 'error_stopping' for unexpected issues
-        if (
-            db and instance_id is not None
-        ):  # Ensure db is available and instance_id is known
+        if db and instance_id is not None:
             try:
-                db.execute(
+                # Ensure 'db' is the connection from the current try block, not a new one unless necessary
+                # and ensure it's open. The 'finally' block handles closing.
+                # If 'db' is already closed due to an earlier part of this try-except, this might fail or use a closed connection.
+                # However, if 'db' was opened at the start of 'try' and the error is not db related, it should be open.
+                current_db_conn = (
+                    db  # Use the existing connection if available and not None
+                )
+                if (
+                    current_db_conn is None
+                ):  # Fallback if db was None (e.g. get_db() failed)
+                    current_db_conn = get_db()
+
+                current_db_conn.execute(
                     "UPDATE rstudio_instances SET status = 'error_stopping', container_id = NULL WHERE id = ?",
                     (instance_id,),
                 )
-                db.commit()
+                current_db_conn.commit()
                 logging.info(
                     f"Instance {instance_id} status updated to 'error_stopping' due to unexpected Python error."
                 )
+                if current_db_conn is not db:  # if we opened a new connection
+                    current_db_conn.close()
+
             except Exception as db_err:
                 logging.error(
                     f"Failed to update instance {instance_id} status in DB during unexpected Python error handling: {db_err}"
                 )
 
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected server error occurred while trying to stop/remove RStudio instance. Please check server logs. The instance may be in an inconsistent state.",
+        error_message = quote(
+            "An unexpected server error occurred while trying to stop/remove RStudio instance. Please check server logs. The instance may be in an inconsistent state."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
         )
     finally:
         if db:
             db.close()
 
+    # This line should not be reached if all paths in try/except return a RedirectResponse.
+    # Kept for safety, but implies a logical flaw if hit.
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
 
 
