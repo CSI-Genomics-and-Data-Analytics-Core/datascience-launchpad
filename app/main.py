@@ -5,9 +5,10 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sqlite3
 import subprocess
-import os
 import secrets
-import logging  # Ensure logging is imported
+import os
+import logging  # Added import for logging
+from datetime import datetime  # Added import for datetime
 import dotenv  # Import dotenv
 from urllib.parse import quote  # Added for URL encoding messages
 from passlib.context import CryptContext  # Import CryptContext
@@ -118,6 +119,7 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             expires_at DATETIME,
             status TEXT DEFAULT 'requested', -- requested, running, stopped, error
+            stopped_at DATETIME,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """
@@ -460,156 +462,137 @@ async def request_rstudio_instance(
 
 @app.post("/stop_rstudio/{instance_id}")
 async def stop_rstudio_instance(
-    request: Request,
     instance_id: int,
+    request: Request,
     current_user: dict = Depends(get_current_active_user),
 ):
-    db = None  # Initialize db to None for robust finally block
-    instance_container_name_for_logging = (
-        "N/A"  # For logging in case instance fetch fails
+    db = get_db()
+    instance = db.execute(
+        "SELECT * FROM rstudio_instances WHERE id = ? AND user_id = ?",
+        (instance_id, current_user["id"]),
+    ).fetchone()
+
+    if not instance:
+        db.close()
+        error_message = quote("Instance not found or not yours.")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+        )
+
+    container_name = instance["container_name"]
+    logging.info(
+        f"User '{current_user['username']}' attempting to stop instance ID {instance_id} (Container: {container_name})"
     )
+
+    error_accumulator = []
+    success_message_parts = []
+
     try:
-        db = get_db()
-        instance = db.execute(
-            "SELECT * FROM rstudio_instances WHERE id = ? AND user_id = ?",
-            (instance_id, current_user["id"]),
-        ).fetchone()
-
-        if not instance or not instance["container_name"]:
-            if db:  # Close connection if open
-                db.close()
-            error_message = quote(
-                "Instance not found or you are not authorized to stop it."
-            )
-            return RedirectResponse(
-                url=f"/dashboard?error={error_message}",
-                status_code=status.HTTP_302_FOUND,
-            )
-
-        container_name = instance["container_name"]
-        instance_container_name_for_logging = container_name  # Set for logging
-        docker_errors = []  # To collect messages from Docker command failures
-
-        # Attempt to stop the container
-        logging.info(
-            f"Attempting to stop container: {container_name} (Instance ID: {instance_id})"
+        stop_cmd = ["docker", "stop", container_name]
+        logging.info(f"Executing: {' '.join(stop_cmd)}")
+        # Using check=False to handle non-zero exit codes manually
+        stop_process = subprocess.run(
+            stop_cmd, capture_output=True, text=True, check=False
         )
-        stop_result = subprocess.run(
-            ["docker", "stop", container_name], capture_output=True, text=True
-        )
-        if stop_result.returncode == 0:
+
+        if stop_process.returncode == 0:
             logging.info(
-                f"Successfully stopped container: {container_name}. It will be auto-removed due to --rm flag."
+                f"Successfully sent stop command to container {container_name}."
             )
-        elif "No such container" in stop_result.stderr:
-            logging.info(
-                f"Container {container_name} already stopped/removed or did not exist (stop command)."
+            success_message_parts.append(
+                f"Instance '{container_name}' stop command processed."
             )
         else:
-            logging.error(
-                f"Error stopping container {container_name}: {stop_result.stderr.strip()}"
-            )
-            docker_errors.append(f"Failed to stop: {stop_result.stderr.strip()}")
+            stderr_msg = stop_process.stderr.strip()
+            # Log the full stderr for better debugging, regardless of known patterns
+            logging.warning(f"Output from 'docker stop {container_name}': {stderr_msg}")
 
-        # Removed explicit 'docker rm' section as containers are started with --rm
+            # Check for known non-critical error messages
+            if "No such container" in stderr_msg:
+                logging.info(f"Container {container_name} was already removed.")
+                success_message_parts.append(
+                    f"Instance '{container_name}' was already stopped/removed."
+                )
+            elif (
+                "is already in progress" in stderr_msg.lower()
+            ):  # Case-insensitive check
+                logging.info(
+                    f"Container {container_name} removal was already in progress."
+                )
+                success_message_parts.append(
+                    f"Instance '{container_name}' stop/removal was already in progress."
+                )
+            else:
+                # Accumulate other Docker errors
+                error_accumulator.append(
+                    f"Docker stop issue: {stderr_msg if stderr_msg else 'Unknown error from docker stop'}"
+                )
 
-        # Update the database status to 'stopped'
-        db.execute(
-            "UPDATE rstudio_instances SET status = 'stopped', container_id = NULL WHERE id = ?",
-            (instance_id,),
+        # Update DB status to 'stopped' and record 'stopped_at' time
+        # This happens even if docker stop had minor issues like "no such container"
+        # as the goal is to mark the instance as stopped in our system.
+        cursor = db.cursor()
+        current_time_utc = datetime.utcnow()
+        cursor.execute(
+            "UPDATE rstudio_instances SET status = 'stopped', stopped_at = ? WHERE id = ?",
+            (current_time_utc, instance_id),
         )
         db.commit()
         logging.info(
-            f"Instance {instance_id} ({container_name}) DB status updated to 'stopped'."
+            f"Instance {instance_id} (Container: {container_name}) status updated to 'stopped', stopped_at={current_time_utc.isoformat()} in DB."
         )
+        success_message_parts.append("Instance record updated to 'stopped'.")
 
-        if docker_errors:
-            combined_error_message = ". ".join(docker_errors)
-            logging.error(
-                f"Docker stop operation for {container_name} (Instance ID: {instance_id}) resulted in errors: {combined_error_message}"
-            )
-            error_message = quote(
-                f"Error(s) during stop of RStudio instance '{container_name}': {combined_error_message}. The instance record has been marked as 'stopped'."
-            )
-            return RedirectResponse(
-                url=f"/dashboard?error={error_message}",
-                status_code=status.HTTP_302_FOUND,
-            )
-
-        logging.info(
-            f"Successfully processed stop for {container_name} (Instance ID: {instance_id}). Container will be auto-removed."
-        )
-        success_message = quote(
-            f"Instance '{container_name}' stopped successfully. The container will be automatically removed."
-        )
-        return RedirectResponse(
-            url=f"/dashboard?message={success_message}",
-            status_code=status.HTTP_302_FOUND,
-        )
-
-    except HTTPException as e:  # Catch any other HTTPExceptions
-        # This is a safeguard. Ideally, all user-facing HTTPExceptions are converted to redirects.
-        # If one is raised and not caught before this, log it and redirect.
+    except Exception as e:
         logging.error(
-            f"Unexpected HTTPException during stop/remove for instance ID {instance_id}: {str(e)}",
+            f"Unexpected critical error during stop operation for instance '{container_name}': {str(e)}",
             exc_info=True,
         )
-        error_message = quote(
-            "An unexpected issue occurred. Please check the dashboard for status."
-        )
-        return RedirectResponse(
-            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
-        )
-    except Exception as e:
-        # Catch any other unexpected Python errors
-        logging.error(
-            f"Unexpected Python error during stop/remove of container for instance ID {instance_id} (name: {instance_container_name_for_logging}): {str(e)}",
-            exc_info=True,  # Log full traceback
-        )
-        # Attempt to update DB status to 'error_stopping' for unexpected issues
-        if db and instance_id is not None:
+        error_accumulator.append(f"Unexpected critical error: {str(e)}")
+        # Attempt to mark as error in DB if a critical exception occurred, and if DB connection is still viable
+        # This is a best-effort, as the DB connection itself might be the source of the error.
+        if db:
             try:
-                # Ensure 'db' is the connection from the current try block, not a new one unless necessary
-                # and ensure it's open. The 'finally' block handles closing.
-                # If 'db' is already closed due to an earlier part of this try-except, this might fail or use a closed connection.
-                # However, if 'db' was opened at the start of 'try' and the error is not db related, it should be open.
-                current_db_conn = (
-                    db  # Use the existing connection if available and not None
-                )
-                if (
-                    current_db_conn is None
-                ):  # Fallback if db was None (e.g. get_db() failed)
-                    current_db_conn = get_db()
-
-                current_db_conn.execute(
-                    "UPDATE rstudio_instances SET status = 'error_stopping', container_id = NULL WHERE id = ?",
-                    (instance_id,),
-                )
-                current_db_conn.commit()
-                logging.info(
-                    f"Instance {instance_id} status updated to 'error_stopping' due to unexpected Python error."
-                )
-                if current_db_conn is not db:  # if we opened a new connection
-                    current_db_conn.close()
-
+                # Check current status before overriding to 'error', to avoid overwriting a successful 'stopped'
+                current_status_row = db.execute(
+                    "SELECT status FROM rstudio_instances WHERE id = ?", (instance_id,)
+                ).fetchone()
+                if current_status_row and current_status_row["status"] != "stopped":
+                    cursor = db.cursor()
+                    cursor.execute(
+                        "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                        (instance_id,),
+                    )
+                    db.commit()
+                    logging.info(
+                        f"Instance {instance_id} status updated to 'error' due to critical exception."
+                    )
             except Exception as db_err:
                 logging.error(
-                    f"Failed to update instance {instance_id} status in DB during unexpected Python error handling: {db_err}"
+                    f"Failed to update instance status to 'error' during critical exception handling: {db_err}"
                 )
 
-        error_message = quote(
-            "An unexpected server error occurred while trying to stop/remove RStudio instance. Please check server logs. The instance may be in an inconsistent state."
-        )
-        return RedirectResponse(
-            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
-        )
     finally:
-        if db:
+        if db:  # Ensure db connection is closed
             db.close()
 
-    # This line should not be reached if all paths in try/except return a RedirectResponse.
-    # Kept for safety, but implies a logical flaw if hit.
-    return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    # Construct redirect response
+    if error_accumulator:
+        # Errors occurred that were not "No such container" or "removal in progress"
+        full_error_detail = "; ".join(error_accumulator)
+        # Append any partial success messages (like DB update) to provide full context
+        combined_message = f"Error(s) stopping instance '{container_name}': {full_error_detail}. {' '.join(success_message_parts)}"
+        final_message = quote(combined_message)
+        return RedirectResponse(
+            url=f"/dashboard?error={final_message}", status_code=status.HTTP_302_FOUND
+        )
+    else:
+        # No critical errors, and any Docker messages were handled as non-critical
+        final_success_message = quote(" ".join(success_message_parts))
+        return RedirectResponse(
+            url=f"/dashboard?message={final_success_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
 
 @app.post("/delete_rstudio/{instance_id}", name="delete_rstudio_instance")
