@@ -38,18 +38,9 @@
       <td>{{ instance.container_id if instance.container_id else 'N/A' }}</td>
       <td>{{ instance.port if instance.port else 'N/A' }}</td>
       <td>{{ instance.status }}</td>
-      <td>
-        {{ instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if
-        instance.created_at else 'N/A' }}
-      </td>
-      <td>
-        {{ instance.expires_at.strftime('%Y-%m-%d %H:%M:%S') if
-        instance.expires_at else 'N/A' }}
-      </td>
-      <td>
-        {{ instance.stopped_at.strftime('%Y-%m-%d %H:%M:%S') if
-        instance.stopped_at else 'N/A' }}
-      </td>
+      <td>{{ instance.created_at if instance.created_at else 'N/A' }}</td>
+      <td>{{ instance.expires_at if instance.expires_at else 'N/A' }}</td>
+      <td>{{ instance.stopped_at if instance.stopped_at else 'N/A' }}</td>
       <td>
         {% if instance.status == 'running' %}
         <form
