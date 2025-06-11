@@ -116,3 +116,76 @@ footer {
   color: #fff;
   margin-top: 20px;
 }
+
+/* Custom styles for RStudio Login Modal */
+.modal-body .form-label {
+  margin-bottom: 0.25rem;
+  font-weight: 500; /* Slightly bolder labels */
+}
+
+.modal-body .form-control-plaintext {
+  padding-left: 0.5rem; /* Align with input group */
+  border: 1px solid #e9ecef; /* Subtle border for readonly fields */
+  border-radius: .25rem;
+  background-color: #f8f9fa; /* Light background for readonly fields */
+}
+
+.modal-body .input-group .form-control-plaintext {
+    border-right: 0; /* Remove right border when part of input group */
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.modal-body .input-group .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.modal-body hr {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.modal-body .list-group-item {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-left: 0;
+  border-right: 0;
+}
+
+.modal-body .list-group-item:first-child {
+  border-top: 0;
+}
+
+.modal-body .list-group-item:last-child {
+  border-bottom: 0;
+}
+
+.modal-body .badge {
+    font-size: 0.85em;
+}
+
+.modal-header {
+    background-color: #f8f9fa; /* Light grey header */
+    border-bottom: 1px solid #dee2e6;
+}
+
+.modal-title {
+    font-weight: 500;
+}
+
+.modal-footer {
+    background-color: #f8f9fa; /* Light grey footer */
+    border-top: 1px solid #dee2e6;
+}
+
+/* Ensure buttons in table cells are vertically aligned if they wrap */
+.table td .d-flex > * {
+    margin-bottom: .25rem; /* Add a small margin if they stack */
+}
+
+@media (min-width: 576px) { /* On small screens and up, prevent stacking */
+    .table td .d-flex > * {
+        margin-bottom: 0;
+    }
+}

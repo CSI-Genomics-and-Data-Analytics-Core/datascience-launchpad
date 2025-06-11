@@ -85,31 +85,33 @@ endblock %} {% block content %}
               {# Display stopped_at #}
               <td class="text-center">
                 {% if instance.status == 'running' %}
-                <a
-                  href="http://{{ request.url.hostname }}:{{ instance.port }}"
-                  target="_blank"
-                  class="btn btn-success btn-sm me-1"
-                  title="Access RStudio"
-                >
-                  <i class="bi bi-box-arrow-up-right"></i> Access
-                </a>
-                <form
-                  action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
-                  method="post"
-                  style="display: inline"
-                  onsubmit="showLoading(this, 'Stopping Instance...')"
-                >
-                  <button
-                    type="submit"
-                    class="btn btn-danger btn-sm"
-                    title="Stop Instance"
+                <div class="d-flex justify-content-center align-items-center">
+                  <a
+                    href="http://{{ request.url.hostname }}:{{ instance.port }}"
+                    target="_blank"
+                    class="btn btn-success btn-sm me-1"
+                    title="Access RStudio"
                   >
-                    <i class="bi bi-stop-circle"></i> Stop
+                    <i class="bi bi-box-arrow-up-right"></i> Access
+                  </a>
+                  <form
+                    action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
+                    method="post"
+                    style="display: inline-block; margin: 0;"
+                    onsubmit="showLoading(this, 'Stopping Instance...')"
+                  >
+                    <button
+                      type="submit"
+                      class="btn btn-danger btn-sm me-1"
+                      title="Stop Instance"
+                    >
+                      <i class="bi bi-stop-circle"></i> Stop
+                    </button>
+                  </form>
+                  <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
+                    <i class="bi bi-key"></i> View Login Info
                   </button>
-                </form>
-                <button type="button" class="btn btn-info btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
-                  <i class="bi bi-key"></i> View Login Info
-                </button>
+                </div>
 
                 <!-- Modal for credentials -->
                 <div class="modal fade" id="credentials-{{ instance.id }}" tabindex="-1" aria-labelledby="credentialsModalLabel-{{ instance.id }}" aria-hidden="true">
@@ -120,25 +122,45 @@ endblock %} {% block content %}
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
                       <div class="modal-body">
-                        <div class="alert alert-info">
-                          <p class="mb-0">Use these credentials to log in when prompted by RStudio:</p>
-                        </div>
-                        <div class="card">
-                          <div class="card-body">
-                            <p><strong>Username:</strong> {% if '@' in user.username %}{{ user.username.split('@')[0] }}{% else %}{{ user.username }}{% endif %}</p>
-                            <p><strong>Password:</strong> {{ instance.password }}</p>
-                            <hr>
-                            <div class="mb-0">
-                              <strong>Resources:</strong>
-                              <ul class="list-unstyled mt-1">
-                                <li><i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}</li>
-                                <li><i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}</li>
-                                <li><i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}</li>
-                              </ul>
-                            </div>
-                            <p><small class="text-muted">Note: For email addresses, only the part before @ is used as username.</small></p>
+                        <div class="alert alert-primary d-flex align-items-center" role="alert">
+                          <i class="bi bi-info-circle-fill me-2 fs-4"></i>
+                          <div>
+                            Use these credentials to log in when prompted by RStudio.
                           </div>
                         </div>
+
+                        <div class="mb-3">
+                            <label for="rstudio-username-{{ instance.id }}" class="form-label"><strong>Username:</strong></label>
+                            <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="{% if '@' in user.username %}{{ user.username.split('@')[0] }}{% else %}{{ user.username }}{% endif %}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="rstudio-password-{{ instance.id }}" class="form-label"><strong>Password:</strong></label>
+                            <div class="input-group">
+                                <input type="password" readonly class="form-control-plaintext ps-2" id="rstudio-password-{{ instance.id }}" value="{{ instance.password }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePasswordVisibility('rstudio-password-{{ instance.id }}', this)"><i class="bi bi-eye"></i></button>
+                            </div>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <h6 class="mb-2"><strong><i class="bi bi-motherboard me-1"></i>Resources:</strong></h6>
+                        <ul class="list-group list-group-flush mb-3">
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-memory me-2 text-primary"></i>Memory:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ memory_limit }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-cpu-fill me-2 text-primary"></i>CPUs:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ cpu_limit }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-hdd-fill me-2 text-primary"></i>Storage:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ storage_limit }}</span>
+                          </li>
+                        </ul>
+                        <p class="text-muted small mt-2 mb-0">
+                          <i class="bi bi-info-circle me-1"></i>Note: For email addresses, only the part before '@' is used as the RStudio username.
+                        </p>
                       </div>
                       <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -233,5 +255,19 @@ endblock %} {% block content %}
     var overlay = document.getElementById("global-loading-overlay");
     if (overlay) overlay.style.display = "none";
   });
+
+  function togglePasswordVisibility(fieldId, button) {
+    const passwordField = document.getElementById(fieldId);
+    const icon = button.querySelector('i');
+    if (passwordField.type === "password") {
+      passwordField.type = "text";
+      icon.classList.remove('bi-eye');
+      icon.classList.add('bi-eye-slash');
+    } else {
+      passwordField.type = "password";
+      icon.classList.remove('bi-eye-slash');
+      icon.classList.add('bi-eye');
+    }
+  }
 </script>
 {% endblock %} {% endblock %}
