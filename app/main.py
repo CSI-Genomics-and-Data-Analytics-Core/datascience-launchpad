@@ -1089,10 +1089,10 @@ async def admin_dashboard(
             status_code=status.HTTP_302_FOUND,
         )
     except Exception as e_general:
-        # Log the type of e_general as well, it might be informative
+        # Log the type of e_general and rely on exc_info=True for the full original error
         logging.error(
-            f"Unexpected error in admin_dashboard ({type(e_general).__name__}): {e_general}",
-            exc_info=True,
+            f"Unexpected error in admin_dashboard. Exception type: {type(e_general).__name__}. Original error details follow.",
+            exc_info=True,  # This will log the full details of e_general
         )
 
         # Prepare the error message for the redirect
