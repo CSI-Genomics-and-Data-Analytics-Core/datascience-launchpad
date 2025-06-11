@@ -53,13 +53,7 @@
                 <option
                   value=""
                   disabled
-                  {%
-                  if
-                  not
-                  lab_name_select_value
-                  %}selected{%
-                  endif
-                  %}
+                  {% if not lab_name_select_value %}selected{% endif %}
                 >
                   Select Lab
                 </option>
