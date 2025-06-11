@@ -550,7 +550,8 @@ async def stop_rstudio_instance(
         )
 
     # Only allow non-admins to stop their own containers
-    if not current_user.get("is_admin") and instance["user_id"] != current_user["id"]:
+    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
+    if not current_user["is_admin"] and instance["user_id"] != current_user["id"]:
         db.close()
         error_message = quote("You are not authorized to stop this instance.")
         return RedirectResponse(
@@ -664,7 +665,8 @@ async def delete_rstudio_instance_action(
     current_user: dict = Depends(get_current_active_user),
 ):
     # Only allow admin to delete records
-    if not current_user.get("is_admin"):
+    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
+    if not current_user["is_admin"]:
         error_message = quote("Only admin users can delete instance records.")
         return RedirectResponse(
             url=f"/dashboard?error={error_message}",
@@ -722,19 +724,15 @@ async def admin_dashboard(
     current_user: dict = Depends(get_current_active_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    if not current_user or not current_user.get("is_admin"):
-        # Redirect to login if not logged in, or to dashboard if not admin
-        if not current_user:
-            return RedirectResponse(
-                url="/login?error=" + quote("Please log in to view this page."),
-                status_code=status.HTTP_303_SEE_OTHER,
-            )
-        else:
-            return RedirectResponse(
-                url="/dashboard?error="
-                + quote("You are not authorized to view this page."),
-                status_code=status.HTTP_303_SEE_OTHER,
-            )
+    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
+    # The get_current_active_user dependency already ensures current_user is not None.
+    if not current_user["is_admin"]:
+        # Redirect to dashboard or show an error if not admin
+        # For now, let's redirect to dashboard with an error message
+        error_message = quote("You do not have permission to access the admin page.")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+        )
 
     users_cursor = db.execute("SELECT id, username, is_admin FROM users")
     users = users_cursor.fetchall()
