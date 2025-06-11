@@ -180,10 +180,10 @@ def init_db():
     logger.info("Database initialized.")
 
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # Initialize DB on startup
 init_db()
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- Authentication (Simplified - consider a robust solution for production) ---
 # For simplicity, we'll store a "session" in a cookie.
