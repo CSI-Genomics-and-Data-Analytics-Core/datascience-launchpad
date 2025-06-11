@@ -588,10 +588,11 @@ async def request_rstudio_instance(
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
             "-e",
             f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
-            RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
         # Add storage limit (now always specified since it has a default value)
+        # Ensure this option is before the image name
         cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
+        cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use configured Docker image
 
         logging.info(
             f"Attempting to run RStudio container with command: {' '.join(cmd)}"
