@@ -106,8 +106,8 @@ RSTUDIO_PORT_RANGE_START = int(os.getenv("RSTUDIO_PORT_RANGE_START", "10000"))
 RSTUDIO_PORT_RANGE_END = int(os.getenv("RSTUDIO_PORT_RANGE_END", "11000"))
 RSTUDIO_BASE_URL_PATH = os.getenv("RSTUDIO_BASE_URL_PATH", "").rstrip("/")
 RSTUDIO_USER_STORAGE_LIMIT = os.getenv(
-    "RSTUDIO_USER_STORAGE_LIMIT"
-)  # Existing variable
+    "RSTUDIO_USER_STORAGE_LIMIT", "200G"
+)  # Added default value of 200G
 
 app = FastAPI()
 
@@ -478,8 +478,7 @@ async def dashboard(
             "title": "Dashboard",
             "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
             "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
-            "storage_limit": RSTUDIO_USER_STORAGE_LIMIT
-            or "Not specified",  # Add storage limit
+            "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Storage limit now has default value
         },
     )
 
@@ -591,9 +590,8 @@ async def request_rstudio_instance(
             f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
             RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
-        # Add storage limit if specified and not empty
-        if RSTUDIO_USER_STORAGE_LIMIT and RSTUDIO_USER_STORAGE_LIMIT.strip():
-            cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
+        # Add storage limit (now always specified since it has a default value)
+        cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
 
         logging.info(
             f"Attempting to run RStudio container with command: {' '.join(cmd)}"
@@ -1095,8 +1093,7 @@ async def admin_dashboard(
                 "title": "Admin Dashboard",
                 "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
                 "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
-                "storage_limit": RSTUDIO_USER_STORAGE_LIMIT
-                or "Not specified",  # Add storage limit
+                "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Storage limit now has default value
             },
         )
 
