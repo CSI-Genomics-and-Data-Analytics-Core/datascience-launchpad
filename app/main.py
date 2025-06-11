@@ -217,9 +217,9 @@ async def register_action(
     # Validate username format if not the initial admin
     if username.lower() != INITIAL_ADMIN_USERNAME.lower():
         allowed_domains = [
-            r"^[a-zA-Z0-9._%+-]+@visitor\\.nus\\.edu\\.sg$",
-            r"^[a-zA-Z0-9._%+-]+@u\\.nus\\.edu$",
-            r"^[a-zA-Z0-9._%+-]+@nus\\.edu\\.sg$",
+            r"^[a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg$",
+            r"^[a-zA-Z0-9._%+-]+@u\.nus\.edu$",
+            r"^[a-zA-Z0-9._%+-]+@nus\.edu\.sg$",
         ]
 
         is_valid_nus_email = False
