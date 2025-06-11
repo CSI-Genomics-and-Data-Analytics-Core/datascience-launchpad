@@ -60,26 +60,14 @@
                 {% for lab in lab_names %}
                 <option
                   value="{{ lab }}"
-                  {%
-                  if
-                  lab_name_select_value=""
-                  ="lab"
-                  %}selected{%
-                  endif
-                  %}
+                  {% if lab_name_select_value == lab %}selected{% endif %}
                 >
                   {{ lab }}
                 </option>
                 {% endfor %}
                 <option
                   value="Other"
-                  {%
-                  if
-                  lab_name_select_value=""
-                  ="Other"
-                  %}selected{%
-                  endif
-                  %}
+                  {% if lab_name_select_value == "Other" %}selected{% endif %}
                 >
                   Other
                 </option>
