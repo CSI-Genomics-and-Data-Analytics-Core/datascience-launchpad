@@ -500,20 +500,30 @@ async def stop_rstudio_instance(
     except HTTPException:  # Re-raise HTTPExceptions directly
         raise
     except Exception as e:  # Catch any other unexpected errors
-        db.execute(
-            """UPDATE rstudio_instances SET status = 'stopped',
-                       container_id = NULL WHERE id = ?""",
-            (instance_id,),
+        logging.error(
+            f"Unexpected error during stop/remove of {container_name} (instance ID: {instance_id}): {str(e)}",
+            exc_info=True,
         )
-        db.commit()
+        # Ensure DB status is updated even if an unexpected error occurs before redirecting or raising
+        if db and instance_id:  # Check if db and instance_id are available
+            try:
+                db.execute(
+                    """UPDATE rstudio_instances SET status = 'error_stopping',
+                               container_id = NULL WHERE id = ?""",
+                    (instance_id,),
+                )
+                db.commit()
+                logging.info(
+                    f"Instance {instance_id} status updated to 'error_stopping' due to unexpected error."
+                )
+            except Exception as db_err:
+                logging.error(
+                    f"Failed to update instance {instance_id} status to 'error_stopping' in DB: {db_err}"
+                )
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to stop RStudio container {container_name}. Instance marked as stopped.",
-        )
-        # Potentially update status to 'error_stopping' in a real scenario
-        raise HTTPException(
-            status_code=500,
-            detail=f"An unexpected error occurred while stopping/removing RStudio container: {str(e)}",
+            detail=f"An unexpected error occurred while stopping/removing RStudio container {container_name}.",
         )
     finally:
         if db:  # Ensure db connection is closed
