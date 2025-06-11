@@ -151,8 +151,8 @@ This guide outlines the steps to deploy the RStudio Portal on a Linux server, sp
           User=<your_app_user> # User that owns /opt/rstudio-portal and has Docker permissions
           Group=<your_app_group>
           WorkingDirectory=/opt/rstudio-portal
-          Environment="PATH=/opt/miniconda3/envs/rstudio-env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" # Adjust Conda path if different
-          ExecStart=/opt/miniconda3/envs/rstudio-env/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+          Environment="PATH=<path_to_your_conda_installation>/envs/<your_conda_env_name>/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" # Adjust Conda path and env name
+          ExecStart=<path_to_your_conda_installation>/envs/<your_conda_env_name>/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 # Adjust Conda path, env name, and port
           Restart=always
           RestartSec=3
 
@@ -161,7 +161,7 @@ This guide outlines the steps to deploy the RStudio Portal on a Linux server, sp
           ```
 
           - **Note:** Replace `<your_app_user>` and `<your_app_group>`. This user needs to be able to run Docker commands (usually by being part of the `docker` group: `sudo usermod -aG docker <your_app_user>`).
-          - Adjust `Environment="PATH=..."` and `ExecStart` to match your Conda installation path and environment name.
+          - Adjust `Environment="PATH=..."` and `ExecStart` to match your Conda installation path (e.g., `/opt/miniconda3`, `/home/<your_user>/anaconda3`, etc.) and environment name.
 
       2.  Reload systemd, enable, and start the service:
           ```bash
