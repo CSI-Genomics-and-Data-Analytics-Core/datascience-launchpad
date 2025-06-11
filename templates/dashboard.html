@@ -79,12 +79,10 @@ endblock %} {% block content %}
                 </span>
               </td>
               <td>
-                {{ instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if
-                instance.created_at else 'N/A' }}
+                {{ instance.created_at if instance.created_at else 'N/A' }}
               </td>
               <td>
-                {{ instance.expires_at.strftime('%Y-%m-%d %H:%M:%S') if
-                instance.expires_at else 'N/A' }}
+                {{ instance.expires_at if instance.expires_at else 'N/A' }}
               </td>
               <td class="text-center">
                 {% if instance.status == 'running' %}

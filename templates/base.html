@@ -128,16 +128,24 @@
             </li>
             {% endif %}
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('logout') }}"
+              <a
+                class="btn btn-outline-light btn-sm"
+                href="{{ url_for('logout') }}"
                 >Logout ({{ request.cookies.get("username") }})</a
               >
             </li>
             {% else %}
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('login_page') }}">Login</a>
+              <a
+                class="btn btn-outline-light btn-sm"
+                href="{{ url_for('login_page') }}"
+                >Login</a
+              >
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('register_page') }}"
+              <a
+                class="btn btn-light btn-sm"
+                href="{{ url_for('register_page') }}"
                 >Register</a
               >
             </li>
