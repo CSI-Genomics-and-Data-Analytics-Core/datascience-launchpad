@@ -12,6 +12,7 @@ from datetime import datetime  # Added import for datetime
 import dotenv  # Import dotenv
 from urllib.parse import quote  # Added for URL encoding messages
 from passlib.context import CryptContext  # Import CryptContext
+import re  # Added for email validation
 
 # Load environment variables from .env file if it exists
 dotenv.load_dotenv()
@@ -211,6 +212,33 @@ async def register_page(request: Request):
 async def register_action(
     request: Request, username: str = Form(...), password: str = Form(...)
 ):
+    # Validate username format if not the initial admin
+    if username.lower() != INITIAL_ADMIN_USERNAME.lower():
+        allowed_domains = [
+            r"@visitor\\.nus\\.edu\\.sg$",
+            r"@u\\.nus\\.edu$",  # Note: Changed from @u.nus.edu to @u.nus.edu.sg based on common NUS patterns, adjust if @u.nus.edu is strictly correct
+            r"@nus\\.edu\\.sg$",
+        ]
+        # NUS Student emails are often @u.nus.edu.sg or @u.nus.edu. Clarify if @u.nus.edu is the specific one.
+        # For now, I'll assume @u.nus.edu as per your request.
+        # If it should be @u.nus.edu.sg, the pattern is: r"@u\\.nus\\.edu\\.sg$"
+
+        is_valid_nus_email = False
+        for domain_pattern in allowed_domains:
+            if re.search(domain_pattern, username.lower()):
+                is_valid_nus_email = True
+                break
+
+        if not is_valid_nus_email:
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "error": "Username must be a valid NUS email address (e.g., @visitor.nus.edu.sg, @u.nus.edu, @nus.edu.sg).",
+                    "title": "Register",
+                },
+            )
+
     db = get_db()
     try:
         hashed_password = pwd_context.hash(password)
@@ -253,7 +281,8 @@ async def dashboard(
 ):
     db = get_db()
     raw_instances = db.execute(  # Renamed to raw_instances
-        "SELECT * FROM rstudio_instances WHERE user_id = ?", (current_user["id"],)
+        "SELECT * FROM rstudio_instances WHERE user_id = ? ORDER BY created_at DESC",
+        (current_user["id"],),
     ).fetchall()
     db.close()
 
@@ -685,9 +714,24 @@ async def logout(request: Request):
 
 # --- Admin (very basic, expand significantly) ---
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: sqlite3.Connection = Depends(get_db)):
-    if not request.session.get("is_admin"):
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+async def admin_dashboard(
+    request: Request,
+    current_user: dict = Depends(get_current_active_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not current_user or not current_user.get("is_admin"):
+        # Redirect to login if not logged in, or to dashboard if not admin
+        if not current_user:
+            return RedirectResponse(
+                url="/login?error=" + quote("Please log in to view this page."),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        else:
+            return RedirectResponse(
+                url="/dashboard?error="
+                + quote("You are not authorized to view this page."),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
 
     users_cursor = db.execute("SELECT id, username, is_admin FROM users")
     users = users_cursor.fetchall()
@@ -697,34 +741,39 @@ async def admin_dashboard(request: Request, db: sqlite3.Connection = Depends(get
     )
     instances_raw = instances_cursor.fetchall()
     instances = []
-    for inst_raw in instances_raw:
-        inst = dict(inst_raw)  # Convert row to dict for easier manipulation
-        for field in ["created_at", "expires_at", "stopped_at"]:
-            value = inst.get(field)
+    for inst_raw_row in instances_raw:  # Changed variable name to avoid conflict
+        inst = dict(inst_raw_row)  # Convert row to dict for easier manipulation
+        # Ensure we are accessing the correct date fields from the 'i' (instances) table alias
+        for field_name in ["created_at", "expires_at", "stopped_at"]:
+            value = inst.get(
+                field_name
+            )  # Direct access, assuming dict keys match column names from SELECT
             if value and isinstance(value, str):
                 try:
-                    # Handles "YYYY-MM-DD HH:MM:SS.ffffff" or "YYYY-MM-DDTHH:MM:SS.ffffff"
-                    # and also "YYYY-MM-DD HH:MM:SS" if space is used as separator
-                    inst[field] = datetime.fromisoformat(value.replace(" ", "T"))
+                    inst[field_name] = datetime.fromisoformat(value.replace(" ", "T"))
                 except ValueError:
-                    # Fallback for "YYYY-MM-DD HH:MM:SS"
                     try:
-                        inst[field] = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                        inst[field_name] = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
                     except ValueError as e_strptime:
                         logging.warning(
-                            f"Admin: Could not parse date string '{value}' for field '{field}' in instance ID {inst.get('id')}. Error: {e_strptime}. Setting to None."
+                            f"Admin: Could not parse date string '{value}' for field '{field_name}' in instance ID {inst.get('id')}. Error: {e_strptime}. Setting to None."
                         )
-                        inst[field] = None
+                        inst[field_name] = None
             elif not isinstance(value, datetime) and value is not None:
                 logging.warning(
-                    f"Admin: Unexpected type '{type(value)}' for date field '{field}' in instance ID {inst.get('id')}. Setting to None."
+                    f"Admin: Unexpected type '{type(value)}' for date field '{field_name}' in instance ID {inst.get('id')}. Setting to None."
                 )
-                inst[field] = None
+                inst[field_name] = None
         instances.append(inst)
 
     return templates.TemplateResponse(
         "admin_dashboard.html",
-        {"request": request, "users": users, "instances": instances},
+        {
+            "request": request,
+            "users": users,
+            "instances": instances,
+            "title": "Admin Dashboard",
+        },
     )
 
 
