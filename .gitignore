@@ -1,0 +1,81 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Environment variables
+.env
+# RStudio files
+.Rproj.user/
+*.Rproj
+.Rproj.user
+
+# R Environment Variables
+.Renviron
+.Rprofile
+
+# Build artifacts
+*.o
+*.so
+*.dll
+
+# Output files from R CMD build
+/*.tar.gz
+/*.Rcheck/
+
+# Output files from R CMD check
+/*.Rcheck/
+
+# RStudio Connect folder
+rsconnect/
+
+# packrat/renv dependencies
+packrat/lib*/
+packrat/src/
+renv/library/
+renv/.cache/
+
+# Temporary files
+*~
+.*.swp
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+inst/doc/
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token
+.httr-oauth
+
+# knitr and R markdown default cache directories
+*_cache/
+/cache/
+*_files/
+
+# Logs
+*.log
+
+# Local configuration
+local.conf
+config.local.R
+
+# Data files (optional, uncomment if needed)
+# *.csv
+# *.rds
+# *.rda
+
+# IDE specific files
+.idea/
+.vscode/
