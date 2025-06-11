@@ -827,60 +827,96 @@ async def logout(request: Request):
 async def admin_dashboard(
     request: Request,
     current_user: dict = Depends(get_current_active_user),
-    db: sqlite3.Connection = Depends(get_db),
+    # db: sqlite3.Connection = Depends(get_db) # REMOVED
 ):
-    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
-    # The get_current_active_user dependency already ensures current_user is not None.
     if not current_user["is_admin"]:
-        # Redirect to dashboard or show an error if not admin
-        # For now, let's redirect to dashboard with an error message
-        error_message = quote("You do not have permission to access the admin page.")
+        error_message = quote("You are not authorized to access this page.")
         return RedirectResponse(
-            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
         )
 
-    users_cursor = db.execute("SELECT id, username, is_admin FROM users")
-    users = users_cursor.fetchall()
+    db = None
+    try:
+        db = get_db()
+        users_cursor = db.execute(
+            "SELECT id, username, is_admin FROM users ORDER BY username"
+        )
+        users = users_cursor.fetchall()
 
-    instances_cursor = db.execute(
-        "SELECT i.id, u.username, i.container_name, i.container_id, i.port, i.status, i.created_at, i.expires_at, i.stopped_at FROM rstudio_instances i JOIN users u ON i.user_id = u.id"
-    )
-    instances_raw = instances_cursor.fetchall()
-    instances = []
-    for inst_raw_row in instances_raw:  # Changed variable name to avoid conflict
-        inst = dict(inst_raw_row)  # Convert row to dict for easier manipulation
-        # Ensure we are accessing the correct date fields from the 'i' (instances) table alias
-        for field_name in ["created_at", "expires_at", "stopped_at"]:
-            value = inst.get(
-                field_name
-            )  # Direct access, assuming dict keys match column names from SELECT
-            if value and isinstance(value, str):
-                try:
-                    inst[field_name] = datetime.fromisoformat(value.replace(" ", "T"))
-                except ValueError:
+        instances_cursor = db.execute(
+            """SELECT i.id, u.username AS owner_username, i.user_id,
+                      i.container_name, i.container_id, i.port, i.password,
+                      i.created_at, i.expires_at, i.status, i.stopped_at
+               FROM rstudio_instances i
+               JOIN users u ON i.user_id = u.id
+               ORDER BY i.created_at DESC"""
+        )
+        instances_raw = instances_cursor.fetchall()
+
+        processed_instances = []
+        for raw_instance in instances_raw:
+            instance_dict = dict(raw_instance)
+            for field in ["created_at", "expires_at", "stopped_at"]:
+                value = instance_dict.get(field)
+                if value and isinstance(value, str):
                     try:
-                        inst[field_name] = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-                    except ValueError as e_strptime:
-                        logging.warning(
-                            f"Admin: Could not parse date string '{value}' for field '{field_name}' in instance ID {inst.get('id')}. Error: {e_strptime}. Setting to None."
+                        instance_dict[field] = datetime.fromisoformat(
+                            value.replace(" ", "T")
                         )
-                        inst[field_name] = None
-            elif not isinstance(value, datetime) and value is not None:
-                logging.warning(
-                    f"Admin: Unexpected type '{type(value)}' for date field '{field_name}' in instance ID {inst.get('id')}. Setting to None."
-                )
-                inst[field_name] = None
-        instances.append(inst)
+                    except ValueError:
+                        try:
+                            instance_dict[field] = datetime.strptime(
+                                value, "%Y-%m-%d %H:%M:%S"
+                            )
+                        except ValueError as e_strptime:
+                            logging.warning(
+                                f"Admin Dashboard: Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Error: {e_strptime}. Setting to None."
+                            )
+                            instance_dict[field] = None
+                elif not isinstance(value, datetime) and value is not None:
+                    logging.warning(
+                        f"Admin Dashboard: Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
+                    )
+                    instance_dict[field] = None
+            processed_instances.append(instance_dict)
 
-    return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
-            "request": request,
-            "users": users,
-            "instances": instances,
-            "title": "Admin Dashboard",
-        },
-    )
+        base_url = str(request.base_url).rstrip("/")
+
+        return templates.TemplateResponse(
+            "admin_dashboard.html",
+            {
+                "request": request,
+                "user": current_user,  # For the nav bar context
+                "users": users,
+                "instances": processed_instances,
+                "base_url": base_url,  # For constructing RStudio links if needed
+                "title": "Admin Dashboard",
+            },
+        )
+    except sqlite3.Error as e_sqlite:
+        logging.error(f"Database error in admin_dashboard: {e_sqlite}", exc_info=True)
+        error_message = quote(
+            "A database error occurred while loading the admin dashboard."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
+            status_code=status.HTTP_302_FOUND,
+        )
+    except Exception as e_general:
+        logging.error(
+            f"Unexpected error in admin_dashboard: {e_general}", exc_info=True
+        )
+        error_message = quote(
+            "An unexpected error occurred while trying to load the admin page."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
+            status_code=status.HTTP_302_FOUND,
+        )
+    finally:
+        if db:
+            db.close()
 
 
 if __name__ == "__main__":
