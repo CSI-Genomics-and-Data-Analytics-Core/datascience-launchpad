@@ -373,12 +373,13 @@ async def request_rstudio_instance(
         )
 
     username_full = current_user["username"]
+    # Ensure username_part correctly extracts the part before '@'
     username_part = (
         username_full.split("@")[0] if "@" in username_full else username_full
-    )  # Get part before @
-    container_name = (
-        f"rstudio-{username_part}-{secrets.token_hex(4)}"  # Use username_part
     )
+
+    # Construct container_name using the (hopefully) corrected username_part
+    container_name = f"rstudio-{username_part}-{secrets.token_hex(4)}"
     rstudio_password = secrets.token_urlsafe(12)
 
     # Find an available port (very basic, improve for production)
@@ -402,9 +403,8 @@ async def request_rstudio_instance(
                 status_code=status.HTTP_302_FOUND,
             )
 
-    user_specific_data_dir = (
-        USER_DATA_BASE_DIR / username_part
-    )  # Use username_part for directory
+    # Use username_part for the user-specific data directory path
+    user_specific_data_dir = USER_DATA_BASE_DIR / username_part
     os.makedirs(user_specific_data_dir, exist_ok=True)
 
     # Store request in DB first
@@ -441,7 +441,7 @@ async def request_rstudio_instance(
             "-p",
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
             "-e",
-            f"USER={username_part}",  # Sets the RStudio user to the username_part
+            f"USER={username_part}",  # Use username_part for the RStudio USER env variable
             RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
         # Add storage limit if specified and not empty
