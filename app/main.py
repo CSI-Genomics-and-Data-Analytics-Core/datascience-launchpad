@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.concurrency import run_in_threadpool  # Added import
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -16,6 +17,33 @@ import re  # Import re for regular expressions
 
 # Load environment variables from .env file if it exists
 dotenv.load_dotenv()
+
+# Lab Names for Registration Dropdown
+LAB_NAMES = [
+    "Anand JEYASEKHARAN",
+    "Ashok VENKITARAMAN",
+    "Boon Cher GOH",
+    "Edward Kai-Hua CHOW",
+    "Daniel G. TENEN",
+    "Dario Campana",
+    "David TAN",
+    "Dennis KAPPEI",
+    "Jason PITT",
+    "Kevin WHITE",
+    "Melissa Jane FULLWOOD",
+    "Patrick TAN",
+    "Polly Leilei CHEN",
+    "Sriram SRIDHARAN",
+    "Soo Chin LEE",
+    "Takaomi SANDA",
+    "Toshio SUDA",
+    "Wai Leong TAM",
+    "Wee Joo CHNG",
+    "Yang ZHANG",
+    "Yoshiaki ITO",
+    "Yvonne TAY",
+    "GeDaC",
+]
 
 # Basic Configuration
 BASE_DIR = (
@@ -87,6 +115,9 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_JINJA_DIR)
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
 
 # --- Database Helper ---
 def get_db():
@@ -96,37 +127,57 @@ def get_db():
 
 
 def init_db():
-    db = get_db()
-    cursor = db.cursor()
+    # Use DATABASE (Path object) and convert to string for sqlite3.connect
+    conn = sqlite3.connect(str(DATABASE))
+    cursor = conn.cursor()
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            is_admin BOOLEAN NOT NULL DEFAULT 0
-        )
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_admin BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        lab_name TEXT NOT NULL
+    )
     """
     )
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS rstudio_instances (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            container_name TEXT NOT NULL,
-            container_id TEXT,
-            port INTEGER NOT NULL,
-            password TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            expires_at DATETIME,
-            status TEXT DEFAULT 'requested', -- requested, running, stopped, error
-            stopped_at DATETIME,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
+    CREATE TABLE IF NOT EXISTS rstudio_instances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        container_name TEXT NOT NULL,
+        container_id TEXT,
+        port INTEGER NOT NULL,
+        password TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        status TEXT DEFAULT 'requested', -- requested, running, stopped, error
+        stopped_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
     """
     )
-    db.commit()
-    db.close()
+
+    # Ensure the admin user exists
+    admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin@example.com")
+    admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "adminpass")
+
+    cursor.execute("SELECT * FROM users WHERE username = ?", (admin_username,))
+    if not cursor.fetchone():
+        hashed_password = pwd_context.hash(admin_password)
+        # Ensure created_at is populated for the initial admin user
+        # Add lab_name for admin user
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?, ?)",
+            (admin_username, hashed_password, True, datetime.utcnow(), "AdminLab"),
+        )
+        logger.info(f"Admin user {admin_username} created.")
+
+    conn.commit()
+    conn.close()
+    logger.info("Database initialized.")
 
 
 # Initialize DB on startup
@@ -189,7 +240,7 @@ async def login_action(
     user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     db.close()
 
-    if user and pwd_context.verify(password, user["password"]):
+    if user and pwd_context.verify(password, user["password_hash"]):
         response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
         response.set_cookie(
             key="username", value=username, httponly=True, samesite="Lax", secure=False
@@ -209,13 +260,18 @@ async def register_page(request: Request):
             "request": request,
             "title": "Register",
             "initial_admin_username": INITIAL_ADMIN_USERNAME,
+            "lab_names": LAB_NAMES,  # Pass lab names to the template
         },
     )
 
 
-@app.post("/register")
+@app.post("/register")  # Changed from /register_action to match existing route
 async def register_action(
-    request: Request, username: str = Form(...), password: str = Form(...)
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    lab_name_select: str = Form(...),
+    lab_name_other: str = Form(""),
 ):
     username = username.strip()  # Remove leading/trailing whitespace
 
@@ -240,29 +296,113 @@ async def register_action(
                     "request": request,
                     "error": "Username must be a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg).",
                     "title": "Register",
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Pass this back
+                    "lab_names": LAB_NAMES,  # Pass lab_names back
+                    "username_value": username,  # Pass entered username back
+                    "password_value": password,  # Pass entered password back
+                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
+                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
                 },
             )
 
-    db = get_db()
+    # Validate lab name
+    final_lab_name = ""
+    if lab_name_select == "Other":
+        lab_name_other_stripped = lab_name_other.strip()
+        if not lab_name_other_stripped:
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "error": "Please specify your lab name when 'Other' is selected.",
+                    "title": "Register",
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
+                    "lab_names": LAB_NAMES,
+                    "username_value": username,
+                    "password_value": password,
+                    "lab_name_select_value": lab_name_select,
+                    "lab_name_other_value": lab_name_other,
+                },
+            )
+        final_lab_name = lab_name_other_stripped
+    else:
+        if lab_name_select not in LAB_NAMES:
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "error": "Invalid lab selection.",
+                    "title": "Register",
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
+                    "lab_names": LAB_NAMES,
+                    "username_value": username,
+                    "password_value": password,
+                    "lab_name_select_value": lab_name_select,
+                    "lab_name_other_value": lab_name_other,
+                },
+            )
+        final_lab_name = lab_name_select
+
+    if not final_lab_name:  # Should ideally be caught by above checks
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "error": "Lab name is mandatory.",
+                "title": "Register",
+                "initial_admin_username": INITIAL_ADMIN_USERNAME,
+                "lab_names": LAB_NAMES,
+                "username_value": username,
+                "password_value": password,
+                "lab_name_select_value": lab_name_select,
+                "lab_name_other_value": lab_name_other,
+            },
+        )
+
+    # Use DATABASE (Path object) and convert to string for sqlite3.connect
+    db = sqlite3.connect(str(DATABASE))
     try:
+        cursor = db.cursor()  # Create cursor from db connection
+        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        if cursor.fetchone():
+            db.close()
+            error = "Username already exists."
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "error": error,
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
+                    "title": "Register",
+                    "lab_names": LAB_NAMES,
+                    "username_value": username,
+                    "password_value": password,
+                    "lab_name_select_value": lab_name_select,
+                    "lab_name_other_value": lab_name_other,
+                },
+            )
+
         hashed_password = pwd_context.hash(password)
-        # Make the first registered user an admin,
-        # or if username matches INITIAL_ADMIN_USERNAME
+        # Ensure created_at is populated for new users (though DB default should handle it)
+        # Determine if the user should be admin
         is_admin_val = 0
-        cursor_check = db.cursor()
-        cursor_check.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor_check.fetchone()[0]
-        if (
-            user_count == 0 or username.lower() == INITIAL_ADMIN_USERNAME.lower()
-        ):  # Use configured admin username
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        if user_count == 0 or username.lower() == INITIAL_ADMIN_USERNAME.lower():
             is_admin_val = 1
 
-        db.execute(
-            "INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)",
-            (username, hashed_password, is_admin_val),
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?, ?)",
+            (
+                username,
+                hashed_password,
+                is_admin_val,
+                datetime.utcnow(),
+                final_lab_name,
+            ),
         )
         db.commit()
-    except sqlite3.IntegrityError:
+    except sqlite3.Error:
         db.close()
         return templates.TemplateResponse(
             "register.html",
@@ -827,7 +967,6 @@ async def logout(request: Request):
 async def admin_dashboard(
     request: Request,
     current_user: dict = Depends(get_current_active_user),
-    # db: sqlite3.Connection = Depends(get_db) # REMOVED
 ):
     if not current_user["is_admin"]:
         error_message = quote("You are not authorized to access this page.")
@@ -836,32 +975,125 @@ async def admin_dashboard(
             status_code=status.HTTP_302_FOUND,
         )
 
-    db = None
+    async def _get_admin_data():
+        conn = None  # Initialize conn to None
+        try:
+            # Use DATABASE (Path object) and convert to string for sqlite3.connect
+            conn = sqlite3.connect(str(DATABASE))
+            conn.row_factory = sqlite3.Row  # Access columns by name
+            cursor = conn.cursor()
+
+            # Fetch all users with created_at and lab_name
+            cursor.execute(
+                "SELECT id, username, is_admin, created_at, lab_name FROM users ORDER BY id"
+            )
+            users_data = cursor.fetchall()
+
+            # Fetch all RStudio instances, sorted by status (running first) then created_at
+            # Ensure all necessary columns are selected for date parsing and display
+            instances_query = """
+                SELECT id, user_id, container_name, container_id, port, password,
+                       created_at, expires_at, status, stopped_at
+                FROM rstudio_instances
+                ORDER BY
+                    CASE status
+                        WHEN 'running' THEN 1
+                        WHEN 'requested' THEN 2
+                        WHEN 'stopped' THEN 3
+                        WHEN 'error' THEN 4
+                        ELSE 5
+                    END,
+                    created_at DESC
+            """
+            instances_cursor = cursor.execute(instances_query)  # Use cursor to execute
+            instances_data = instances_cursor.fetchall()
+            # Convert Row objects to dictionaries and parse dates for users
+            users_list = []
+            for u_row in users_data:
+                user_dict = dict(u_row)
+                user_dict["lab_name"] = u_row["lab_name"]  # Add lab_name
+                if user_dict.get("created_at"):
+                    raw_created_at = user_dict["created_at"]
+                    if isinstance(raw_created_at, str):
+                        try:
+                            user_dict["created_at"] = datetime.fromisoformat(
+                                raw_created_at.replace(" ", "T")
+                            )
+                        except ValueError:
+                            try:
+                                user_dict["created_at"] = datetime.strptime(
+                                    raw_created_at, "%Y-%m-%d %H:%M:%S.%f"
+                                )
+                            except ValueError:
+                                try:
+                                    user_dict["created_at"] = datetime.strptime(
+                                        raw_created_at, "%Y-%m-%d %H:%M:%S"
+                                    )
+                                except ValueError:
+                                    logger.warning(
+                                        f"Could not parse created_at for user {user_dict['id']}: {raw_created_at}"
+                                    )
+                                    user_dict["created_at"] = None
+                    elif not isinstance(raw_created_at, datetime):
+                        logger.warning(
+                            f"Unexpected type for created_at for user {user_dict['id']}: {type(raw_created_at)}"
+                        )
+                        user_dict["created_at"] = None
+                users_list.append(user_dict)
+
+            processed_instances = []
+            # Process instances (this part is CPU/memory bound, not DB I/O)
+            for raw_instance in instances_data:
+                instance_dict = dict(raw_instance)
+                for field in ["created_at", "expires_at", "stopped_at"]:
+                    value = instance_dict.get(field)
+                    if value and isinstance(value, str):
+                        try:
+                            # Handles "YYYY-MM-DD HH:MM:SS.ffffff" or "YYYY-MM-DDTHH:MM:SS.ffffff"
+                            # and also "YYYY-MM-DD HH:MM:SS" if space is used as separator
+                            instance_dict[field] = datetime.fromisoformat(
+                                value.replace(" ", "T")
+                            )
+                        except ValueError:
+                            # Fallback for "YYYY-MM-DD HH:MM:SS" if fromisoformat fails (e.g. older Python or truly different format)
+                            try:
+                                instance_dict[field] = datetime.strptime(
+                                    value, "%Y-%m-%d %H:%M:%S"
+                                )
+                            except ValueError as e_strptime:
+                                logging.warning(
+                                    f"Admin Dashboard: Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Error: {e_strptime}. Setting to None."
+                                )
+                                instance_dict[field] = None
+                    elif not isinstance(value, datetime) and value is not None:
+                        logging.warning(
+                            f"Admin Dashboard: Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
+                        )
+                        instance_dict[field] = None
+                processed_instances.append(instance_dict)
+
+            base_url = str(request.base_url).rstrip("/")
+
+            return templates.TemplateResponse(
+                "admin_dashboard.html",
+                {
+                    "request": request,
+                    "user": current_user,  # For the nav bar context
+                    "users": users_list,
+                    "instances": processed_instances,
+                    "base_url": base_url,  # For constructing RStudio links if needed
+                    "title": "Admin Dashboard",
+                },
+            )
+        finally:
+            if conn:
+                conn.close()  # Close connection inside the thread
+
     try:
-        db = get_db()
-        users_cursor = db.execute(
-            "SELECT id, username, is_admin FROM users ORDER BY username"
-        )
-        users = users_cursor.fetchall()
+        # Execute the synchronous database operations in a thread pool
+        users, instances_raw = await run_in_threadpool(_get_admin_data)
 
-        instances_cursor = db.execute(
-            """SELECT i.id, u.username AS owner_username, i.user_id,
-                      i.container_name, i.container_id, i.port, i.password,
-                      i.created_at, i.expires_at, i.status, i.stopped_at
-               FROM rstudio_instances i
-               JOIN users u ON i.user_id = u.id
-               ORDER BY
-                 CASE i.status
-                   WHEN 'running' THEN 1
-                   WHEN 'requested' THEN 2
-                   WHEN 'stopped' THEN 3
-                   WHEN 'error' THEN 4
-                   ELSE 5
-                 END,
-                 i.created_at DESC"""
-        )
-        instances_raw = instances_cursor.fetchall()
-
+        # Process instances (this part is CPU/memory bound, not DB I/O)
         processed_instances = []
         for raw_instance in instances_raw:
             instance_dict = dict(raw_instance)
@@ -922,9 +1154,7 @@ async def admin_dashboard(
             url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
             status_code=status.HTTP_302_FOUND,
         )
-    finally:
-        if db:
-            db.close()
+    # The finally block for db.close() is removed from here as it's handled within _get_admin_data
 
 
 if __name__ == "__main__":

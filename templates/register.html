@@ -1,98 +1,174 @@
-{% extends "base.html" %} {% block title %}Register - RStudio Portal{% endblock
+{% extends "base.html" %} {% block title %}Register - {{ super() }}{% endblock
 %} {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-4">
-    <div class="card mt-5">
-      <div class="card-body">
-        <h2 class="card-title text-center mb-4">Register</h2>
-        {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
-        {% endif %}
-        <form method="post" id="registerForm">
-          <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input
-              name="username"
-              id="username"
-              class="form-control"
-              required
-              pattern="^[a-zA-Z0-9._%+-]+@(visitor\\.nus\\.edu\\.sg|u\\.nus\\.edu|nus\\.edu\\.sg)$"
-              title="Must be a valid NUS email (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg)"
-            />
-            <div
-              id="usernameError"
-              class="form-text text-danger"
-              style="display: none"
-            ></div>
-            <div class="form-text">
-              Enter your NUS email address (e.g., user@nus.edu.sg,
-              user@u.nus.edu, user@visitor.nus.edu.sg).
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="text-center">Register</h3>
+        </div>
+        <div class="card-body">
+          {% if error %}
+          <div class="alert alert-danger" role="alert">{{ error }}</div>
+          {% endif %}
+          <form
+            method="post"
+            action="{{ url_for('register_action') }}"
+            id="registrationForm"
+          >
+            <div class="mb-3">
+              <label for="username" class="form-label">NUS Email Address</label>
+              <input
+                type="email"
+                class="form-control"
+                id="username"
+                name="username"
+                value="{{ username_value if username_value else '' }}"
+                pattern="^([a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg|([a-zA-Z0-9._%+-]+@u\.nus\.edu)|([a-zA-Z0-9._%+-]+@nus\.edu\.sg))$"
+                title="Must be a valid NUS email (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg)"
+                required
+              />
+              <small id="usernameHelp" class="form-text text-muted"
+                >We'll never share your email with anyone else.</small
+              >
             </div>
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input
-              type="password"
-              name="password"
-              id="password"
-              class="form-control"
-              required
-            />
-          </div>
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary">Register</button>
-          </div>
-        </form>
-        <p class="mt-3 text-center">
-          Already have an account?
-          <a href="{{ url_for('login_page') }}">Login here</a>
-        </p>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                name="password"
+                value="{{ password_value if password_value else '' }}"
+                required
+              />
+            </div>
+            <div class="mb-3">
+              <label for="lab_name_select" class="form-label">Lab Name</label>
+              <select
+                class="form-select"
+                id="lab_name_select"
+                name="lab_name_select"
+                required
+              >
+                <option
+                  value=""
+                  disabled
+                  {%
+                  if
+                  not
+                  lab_name_select_value
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  Select Lab
+                </option>
+                {% for lab in lab_names %}
+                <option
+                  value="{{ lab }}"
+                  {%
+                  if
+                  lab_name_select_value=""
+                  ="lab"
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  {{ lab }}
+                </option>
+                {% endfor %}
+                <option
+                  value="Other"
+                  {%
+                  if
+                  lab_name_select_value=""
+                  ="Other"
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  Other
+                </option>
+              </select>
+            </div>
+            <div class="mb-3" id="other_lab_name_div">
+              <label for="lab_name_other" class="form-label"
+                >Specify Lab Name</label
+              >
+              <input
+                type="text"
+                class="form-control"
+                id="lab_name_other"
+                name="lab_name_other"
+                value="{{ lab_name_other_value if lab_name_other_value else '' }}"
+              />
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer text-center">
+          <small
+            >Already have an account?
+            <a href="{{ url_for('login_page') }}">Login here</a></small
+          >
+        </div>
       </div>
     </div>
   </div>
 </div>
-{% endblock %} {% block scripts %}
+
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    const form = document.getElementById("registerForm");
-    const usernameInput = document.getElementById("username");
-    const usernameError = document.getElementById("usernameError");
     const initialAdminUsername =
       "{{ initial_admin_username.lower() if initial_admin_username else '' }}";
+    const registrationForm = document.getElementById("registrationForm");
+    const usernameInput = document.getElementById("username");
+    const labNameSelect = document.getElementById("lab_name_select");
+    const otherLabNameDiv = document.getElementById("other_lab_name_div");
+    const otherLabNameInput = document.getElementById("lab_name_other");
 
-    form.addEventListener("submit", function (event) {
-      const usernameValue = usernameInput.value.trim().toLowerCase();
-
-      // Check if username is the initial admin username
-      if (initialAdminUsername && usernameValue === initialAdminUsername) {
-        usernameError.textContent =
-          "The username '" +
-          initialAdminUsername +
-          "' is not allowed for registration.";
-        usernameError.style.display = "block";
-        event.preventDefault(); // Prevent form submission
-        return;
+    function toggleOtherLabNameField() {
+      if (labNameSelect.value === "Other") {
+        otherLabNameDiv.style.display = "block";
+        otherLabNameInput.required = true;
+      } else {
+        otherLabNameDiv.style.display = "none";
+        otherLabNameInput.required = false;
+        otherLabNameInput.value = ""; // Clear the other lab name input when not selected
       }
+    }
 
-      // Check against the regex pattern (already handled by pattern attribute for most browsers)
-      // but good to have a JS check as a fallback or for more complex logic
-      const nusEmailPattern = new RegExp(usernameInput.pattern);
-      if (!nusEmailPattern.test(usernameInput.value.trim())) {
-        usernameError.textContent = usernameInput.title; // Use the title attribute for error message
-        usernameError.style.display = "block";
-        event.preventDefault();
-        return;
-      }
+    // Initial state based on pre-filled value (if any)
+    toggleOtherLabNameField();
 
-      usernameError.style.display = "none";
-    });
+    if (labNameSelect) {
+      labNameSelect.addEventListener("change", toggleOtherLabNameField);
+    }
 
-    // Optional: Clear error when user starts typing again
-    usernameInput.addEventListener("input", function () {
-      if (usernameError.style.display === "block") {
-        usernameError.style.display = "none";
-      }
-    });
+    if (registrationForm && usernameInput) {
+      registrationForm.addEventListener("submit", function (event) {
+        const usernameValue = usernameInput.value.trim().toLowerCase();
+        if (initialAdminUsername && usernameValue === initialAdminUsername) {
+          alert(
+            "This username is reserved for the admin account and cannot be registered."
+          );
+          event.preventDefault(); // Prevent form submission
+          return false;
+        }
+        if (
+          labNameSelect.value === "Other" &&
+          otherLabNameInput.value.trim() === ""
+        ) {
+          alert("Please specify your lab name when 'Other' is selected.");
+          event.preventDefault();
+          return false;
+        }
+      });
+    }
   });
 </script>
+
 {% endblock %}

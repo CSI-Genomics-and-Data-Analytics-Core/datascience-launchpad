@@ -1,71 +1,131 @@
-{% extends "base.html" %} {% block content %}
-<h2>Admin Dashboard</h2>
+{% extends "base.html" %} {% block title %}Admin Dashboard - {{ super() }}{%
+endblock %} {% block content %}
+<div class="container mt-4">
+  <h1 class="mb-4">Admin Dashboard</h1>
 
-<h3>All Users:</h3>
-{% if users %}
-<ul>
-  {% for u in users %}
-  <li>{{ u.id }}: {{ u.username }} {% if u.is_admin %}(Admin){% endif %}</li>
-  {% endfor %}
-</ul>
-{% else %}
-<p>No users found.</p>
-{% endif %}
+  {% if message %}
+  <div class="alert alert-success" role="alert">{{ message }}</div>
+  {% endif %} {% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  {% endif %}
 
-<h3>All RStudio Instances:</h3>
-{% if instances %}
-<table>
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>User</th>
-      <th>Container Name</th>
-      <th>Container ID</th>
-      <th>Port</th>
-      <th>Status</th>
-      <th>Created At</th>
-      <th>Expires At</th>
-      <th>Stopped At</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for instance in instances %}
-    <tr>
-      <td>{{ instance.id }}</td>
-      <td>{{ instance.owner_username }}</td>
-      {# Changed from instance.username #}
-      <td>{{ instance.container_name }}</td>
-      <td>{{ instance.container_id if instance.container_id else 'N/A' }}</td>
-      <td>{{ instance.port if instance.port else 'N/A' }}</td>
-      <td>{{ instance.status }}</td>
-      <td>{{ instance.created_at if instance.created_at else 'N/A' }}</td>
-      <td>{{ instance.expires_at if instance.expires_at else 'N/A' }}</td>
-      <td>{{ instance.stopped_at if instance.stopped_at else 'N/A' }}</td>
-      <td>
-        {% if instance.status == 'running' %}
-        <form
-          method="post"
-          action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
-          style="display: inline"
-        >
-          {# <input type="hidden" name="admin_stop" value="true" /> #} {#
-          Removed unused hidden input #}
-          <button type="submit" class="btn btn-warning btn-sm">Stop</button>
-        </form>
-        {% endif %}
-        <form
-          method="post"
-          action="{{ url_for('delete_rstudio_instance', instance_id=instance.id) }}"
-          style="display: inline"
-        >
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No RStudio instances found.</p>
-{% endif %} {% endblock %}
+  <!-- All RStudio Instances Table -->
+  <h2 class="mt-5">All RStudio Instances</h2>
+  {% if instances %}
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Owner</th>
+          <th>Container Name</th>
+          <th>Port</th>
+          <th>Status</th>
+          <th>Created At</th>
+          <th>Expires At</th>
+          <th>Stopped At</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for instance in instances %}
+        <tr>
+          <td>{{ instance.id }}</td>
+          <td>{{ instance.owner_username }}</td>
+          <td>{{ instance.container_name }}</td>
+          <td>{{ instance.port }}</td>
+          <td>
+            <span
+              class="badge {% if instance.status == 'running' %}bg-success {% elif instance.status == 'stopped' %}bg-warning text-dark {% elif instance.status == 'requested' %}bg-info text-dark {% elif instance.status == 'error' %}bg-danger {% else %}bg-secondary {% endif %}"
+            >
+              {{ instance.status }}
+            </span>
+          </td>
+          <td>
+            {{ instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if
+            instance.created_at else 'N/A' }}
+          </td>
+          <td>
+            {{ instance.expires_at.strftime('%Y-%m-%d %H:%M:%S') if
+            instance.expires_at else 'N/A' }}
+          </td>
+          <td>
+            {{ instance.stopped_at.strftime('%Y-%m-%d %H:%M:%S') if
+            instance.stopped_at else 'N/A' }}
+          </td>
+          <td>
+            {% if instance.status == 'running' or instance.status == 'requested'
+            or instance.status == 'error' %}
+            <form
+              method="post"
+              action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
+              style="display: inline"
+            >
+              <button type="submit" class="btn btn-warning btn-sm">Stop</button>
+            </form>
+            {% endif %} {% if instance.status == 'stopped' or instance.status ==
+            'error' %}
+            <form
+              method="post"
+              action="{{ url_for('delete_rstudio_instance', instance_id=instance.id) }}"
+              style="display: inline"
+              onsubmit="return confirm('Are you sure you want to delete this instance? This action cannot be undone.');"
+            >
+              <button type="submit" class="btn btn-danger btn-sm">
+                Delete
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No RStudio instances found.</p>
+  {% endif %}
+
+  <!-- All Users Table -->
+  <h2 class="mt-5">All Users</h2>
+  {% if users %}
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Lab Name</th>
+          {# New Column #}
+          <th>Is Admin</th>
+          <th>Created Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user_item in users %} {# Changed loop variable to user_item to
+        avoid conflict with global user #}
+        <tr>
+          <td>{{ user_item.id }}</td>
+          <td>{{ user_item.username }}</td>
+          <td>{{ user_item.lab_name }}</td>
+          {# Display Lab Name #}
+          <td>
+            <span
+              class="badge {% if user_item.is_admin %}bg-primary{% else %}bg-secondary{% endif %}"
+              >{{ 'Yes' if user_item.is_admin else 'No' }}</span
+            >
+          </td>
+          <td>
+            {{ user_item.created_at.strftime('%Y-%m-%d %H:%M:%S') if
+            user_item.created_at else 'N/A' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No users found.</p>
+  {% endif %}
+</div>
+{% endblock %}
