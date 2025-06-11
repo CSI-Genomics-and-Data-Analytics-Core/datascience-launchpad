@@ -212,16 +212,15 @@ async def register_page(request: Request):
 async def register_action(
     request: Request, username: str = Form(...), password: str = Form(...)
 ):
+    username = username.strip()  # Remove leading/trailing whitespace
+
     # Validate username format if not the initial admin
     if username.lower() != INITIAL_ADMIN_USERNAME.lower():
         allowed_domains = [
-            r"@visitor\\.nus\\.edu\\.sg$",
-            r"@u\\.nus\\.edu$",  # Note: Changed from @u.nus.edu to @u.nus.edu.sg based on common NUS patterns, adjust if @u.nus.edu is strictly correct
-            r"@nus\\.edu\\.sg$",
+            r"@visitor\.nus\.edu\.sg$",  # Corrected: \\. to \.
+            r"@u\.nus\.edu$",  # Corrected: \\. to \.
+            r"@nus\.edu\.sg$",  # Corrected: \\. to \.
         ]
-        # NUS Student emails are often @u.nus.edu.sg or @u.nus.edu. Clarify if @u.nus.edu is the specific one.
-        # For now, I'll assume @u.nus.edu as per your request.
-        # If it should be @u.nus.edu.sg, the pattern is: r"@u\\.nus\\.edu\\.sg$"
 
         is_valid_nus_email = False
         for domain_pattern in allowed_domains:
