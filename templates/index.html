@@ -9,20 +9,22 @@ endblock %} {% block content %}
       Access your dedicated RStudio instance, manage your projects, and work
       seamlessly.
     </p>
-    <p class="lead mt-4">
+    <div class="d-flex justify-content-center gap-2 mt-4">
       <a
-        class="btn btn-primary btn-lg me-2"
+        class="btn btn-primary btn-lg"
         href="{{ url_for('login_page') }}"
         role="button"
+        style="min-width: 130px"
         >Login</a
       >
       <a
         class="btn btn-secondary btn-lg"
         href="{{ url_for('register_page') }}"
         role="button"
+        style="min-width: 130px"
         >Register</a
       >
-    </p>
+    </div>
   </div>
 
   <div class="row mt-5">

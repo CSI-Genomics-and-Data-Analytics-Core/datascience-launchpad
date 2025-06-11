@@ -252,10 +252,46 @@ async def dashboard(
     request: Request, current_user: dict = Depends(get_current_active_user)
 ):
     db = get_db()
-    instances = db.execute(
+    raw_instances = db.execute(  # Renamed to raw_instances
         "SELECT * FROM rstudio_instances WHERE user_id = ?", (current_user["id"],)
     ).fetchall()
     db.close()
+
+    processed_instances = []
+    for raw_instance in raw_instances:
+        instance_dict = dict(
+            raw_instance
+        )  # Convert Row to dict for easier modification
+        for field in ["created_at", "expires_at", "stopped_at"]:
+            value = instance_dict.get(field)
+            if value and isinstance(value, str):
+                try:
+                    # Handles "YYYY-MM-DD HH:MM:SS.ffffff" or "YYYY-MM-DDTHH:MM:SS.ffffff"
+                    # and also "YYYY-MM-DD HH:MM:SS" if space is used as separator
+                    instance_dict[field] = datetime.fromisoformat(
+                        value.replace(" ", "T")
+                    )
+                except ValueError:
+                    # Fallback for "YYYY-MM-DD HH:MM:SS" if fromisoformat fails (e.g. older Python or truly different format)
+                    try:
+                        instance_dict[field] = datetime.strptime(
+                            value, "%Y-%m-%d %H:%M:%S"
+                        )
+                    except ValueError as e_strptime:
+                        logging.warning(
+                            f"Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Error: {e_strptime}. Setting to None."
+                        )
+                        instance_dict[field] = (
+                            None  # Set to None to prevent template error
+                        )
+            elif not isinstance(value, datetime) and value is not None:
+                # If it's not a string, not a datetime, and not None (e.g., int/float from other storage types)
+                logging.warning(
+                    f"Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
+                )
+                instance_dict[field] = None
+
+        processed_instances.append(instance_dict)
 
     # Get base URL for RStudio links
     base_url = str(request.base_url).rstrip("/")
@@ -265,7 +301,7 @@ async def dashboard(
         {
             "request": request,
             "user": current_user,
-            "instances": instances,
+            "instances": processed_instances,  # Pass processed instances
             "base_url": base_url,
             "title": "Dashboard",
         },
