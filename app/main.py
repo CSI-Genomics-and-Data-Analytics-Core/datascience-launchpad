@@ -13,6 +13,7 @@ import dotenv  # Import dotenv
 from urllib.parse import quote  # Added for URL encoding messages
 from passlib.context import CryptContext  # Import CryptContext
 import re  # Import re for regular expressions
+import platform  # Import platform to check the operating system
 
 # Load environment variables from .env file if it exists
 dotenv.load_dotenv()
@@ -589,9 +590,9 @@ async def request_rstudio_instance(
             "-e",
             f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
         ]
-        # Add storage limit (now always specified since it has a default value)
-        # Ensure this option is before the image name
-        cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
+        # Add storage limit only if running on Linux (Docker Desktop on macOS/Windows does not support --storage-opt)
+        if platform.system() == "Linux":
+            cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
         cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use configured Docker image
 
         logging.info(
