@@ -440,14 +440,45 @@ async def stop_rstudio_instance(
     container_name = instance["container_name"]
 
     try:
-        # Stop container
-        subprocess.run(
-            ["docker", "stop", container_name], check=True, capture_output=True
+        # Attempt to stop the container
+        logging.info(f"Attempting to stop container: {container_name}")
+        stop_result = subprocess.run(
+            ["docker", "stop", container_name], capture_output=True, text=True
         )
-        # Remove container
-        subprocess.run(
-            ["docker", "rm", container_name], check=True, capture_output=True
+        if stop_result.returncode != 0:
+            if "No such container" not in stop_result.stderr:
+                logging.error(
+                    f"Error stopping container {container_name}: {stop_result.stderr}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to stop RStudio container {container_name}: {stop_result.stderr}",
+                )
+            logging.info(
+                f"Container {container_name} already stopped or does not exist (stop command)."
+            )
+        else:
+            logging.info(f"Successfully stopped container: {container_name}")
+
+        # Attempt to remove the container (it might have been auto-removed if started with --rm)
+        logging.info(f"Attempting to remove container: {container_name}")
+        rm_result = subprocess.run(
+            ["docker", "rm", container_name], capture_output=True, text=True
         )
+        if rm_result.returncode != 0:
+            if "No such container" not in rm_result.stderr:
+                logging.error(
+                    f"Error removing container {container_name}: {rm_result.stderr}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to remove RStudio container {container_name}: {rm_result.stderr}",
+                )
+            logging.info(
+                f"Container {container_name} already removed or does not exist (rm command)."
+            )
+        else:
+            logging.info(f"Successfully removed container: {container_name}")
 
         db.execute(
             """UPDATE rstudio_instances SET status = 'stopped',
@@ -455,16 +486,20 @@ async def stop_rstudio_instance(
             (instance_id,),
         )
         db.commit()
-    except subprocess.CalledProcessError as e:
-        # Log error e.stderr
-        # Potentially update status to 'error_stopping'
-        db.close()
+    except HTTPException:  # Re-raise HTTPExceptions directly
+        raise
+    except Exception as e:  # Catch any other unexpected errors
+        logging.error(
+            f"Unexpected error during stop/remove of {container_name}: {str(e)}"
+        )
+        # Potentially update status to 'error_stopping' in a real scenario
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to stop/remove RStudio container: {e.stderr}",
+            detail=f"An unexpected error occurred while stopping/removing RStudio container: {str(e)}",
         )
     finally:
-        db.close()
+        if db:  # Ensure db connection is closed
+            db.close()
 
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
 
