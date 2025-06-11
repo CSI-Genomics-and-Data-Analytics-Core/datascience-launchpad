@@ -165,8 +165,9 @@ def get_current_active_user(current_user: dict = Depends(get_current_user)):
 async def root(request: Request, user: dict = Depends(get_current_user)):
     if user:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    # Serve the new index.html for unauthenticated users
     return templates.TemplateResponse(
-        "login.html", {"request": request, "title": "Login"}
+        "index.html", {"request": request, "title": "Welcome"}
     )
 
 

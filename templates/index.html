@@ -1,0 +1,52 @@
+\ {% extends "base.html" %} {% block title %}Welcome to RStudio Portal{%
+endblock %} {% block content %}
+<div class="container mt-5">
+  <div class="jumbotron text-center">
+    <h1 class="display-4">Welcome to the Self-Hosted RStudio Portal</h1>
+    <p class="lead">Your personal RStudio environment, on demand.</p>
+    <hr class="my-4" />
+    <p>
+      Access your dedicated RStudio instance, manage your projects, and work
+      seamlessly.
+    </p>
+    <p class="lead mt-4">
+      <a
+        class="btn btn-primary btn-lg me-2"
+        href="{{ url_for('login_page') }}"
+        role="button"
+        >Login</a
+      >
+      <a
+        class="btn btn-secondary btn-lg"
+        href="{{ url_for('register_page') }}"
+        role="button"
+        >Register</a
+      >
+    </p>
+  </div>
+
+  <div class="row mt-5">
+    <div class="col-md-4">
+      <h2>Easy Access</h2>
+      <p>
+        Log in to request and manage your personal RStudio container with a few
+        clicks.
+      </p>
+    </div>
+    <div class="col-md-4">
+      <h2>Secure & Isolated</h2>
+      <p>
+        Each user gets their own sandboxed RStudio environment for secure data
+        analysis.
+      </p>
+    </div>
+    <div class="col-md-4">
+      <h2>Resource Management</h2>
+      <p>
+        Admins can configure resource quotas to ensure fair usage of server
+        resources.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
