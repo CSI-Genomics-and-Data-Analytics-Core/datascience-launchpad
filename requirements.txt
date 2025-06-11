@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+pre-commit
+detect-secrets
+python-dotenv

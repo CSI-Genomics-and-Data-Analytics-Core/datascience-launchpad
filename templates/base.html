@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }} - RStudio Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
+  </head>
+  <body>
+    <nav>
+      <a href="{{ url_for('root') }}">Home</a>
+      {% if request.cookies.get("username") %}
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('logout') }}"
+        >Logout ({{ request.cookies.get("username") }})</a
+      >
+      {% if request.cookies.get("username") == "admin" %}
+      <!-- Simple admin check -->
+      <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+      {% endif %} {% else %}
+      <a href="{{ url_for('login_page') }}">Login</a>
+      <a href="{{ url_for('register_page') }}">Register</a>
+      {% endif %}
+    </nav>
+    <main>{% block content %}{% endblock %}</main>
+    <footer>
+      <p>&copy; 2025 RStudio Portal</p>
+    </footer>
+  </body>
+</html>

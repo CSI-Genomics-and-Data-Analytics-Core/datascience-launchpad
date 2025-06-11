@@ -1,0 +1,67 @@
+{% extends "base.html" %} {% block content %}
+<h2>Admin Dashboard</h2>
+
+<h3>All Users:</h3>
+{% if users %}
+<ul>
+  {% for u in users %}
+  <li>{{ u.id }}: {{ u.username }} {% if u.is_admin %}(Admin){% endif %}</li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No users found.</p>
+{% endif %}
+
+<h3>All RStudio Instances:</h3>
+{% if instances %}
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>User</th>
+      <th>Container Name</th>
+      <th>Container ID</th>
+      <th>Port</th>
+      <th>Status</th>
+      <th>Created At</th>
+      <th>Expires At</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for instance in instances %}
+    <tr>
+      <td>{{ instance.id }}</td>
+      <td>{{ instance.username }}</td>
+      <td>{{ instance.container_name }}</td>
+      <td>{{ instance.container_id if instance.container_id else 'N/A' }}</td>
+      <td>{{ instance.port if instance.port else 'N/A' }}</td>
+      <td>{{ instance.status }}</td>
+      <td>
+        {{ instance.created_at.split('.')[0] if instance.created_at else 'N/A'
+        }}
+      </td>
+      <td>
+        {{ instance.expires_at.split('.')[0] if instance.expires_at else 'N/A'
+        }}
+      </td>
+      <td>
+        {% if instance.status == 'running' %}
+        <form
+          method="post"
+          action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
+          style="display: inline"
+        >
+          <input type="hidden" name="admin_stop" value="true" />
+          <!-- Optional: for different logic if admin stops -->
+          <button type="submit">Stop</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No RStudio instances found.</p>
+{% endif %} {% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %} {% block content %}
+<h2>Welcome to your Dashboard, {{ user.username }}!</h2>
+
+{% if request.query_params.get('message') %}
+<p style="color: blue">{{ request.query_params.get('message') }}</p>
+{% endif %}
+
+<h3>Your RStudio Instances:</h3>
+{% if instances %}
+<ul>
+  {% for instance in instances %}
+  <li>
+    Container: {{ instance.container_name }} ({{ instance.status }}) {% if
+    instance.status == 'running' and instance.port %} - Access at:
+    <a
+      href="{{ base_url }}/rstudio/{{ user.username }}/{{ instance.port }}/"
+      target="_blank"
+      >RStudio Link ({{ instance.container_name }})</a
+    >
+    <br />Password: {{ instance.password }} (Expires: {{
+    instance.expires_at.split('.')[0] if instance.expires_at else 'N/A' }})
+    <form
+      method="post"
+      action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
+      style="display: inline"
+    >
+      <button type="submit">Stop & Remove</button>
+    </form>
+    {% elif instance.status == 'requested' %} - Provisioning... please refresh
+    shortly. {% elif instance.status == 'error' %} - Error during provisioning.
+    Please contact admin. {% elif instance.status == 'stopped' %} - Stopped. {%
+    endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>You have no RStudio instances.</p>
+{% endif %}
+
+<h3>Request New RStudio Instance:</h3>
+<form method="post" action="{{ url_for('request_rstudio_instance') }}">
+  <p>This will provision a new RStudio container for you.</p>
+  <button type="submit">Request New RStudio</button>
+</form>
+
+<p><a href="{{ url_for('logout') }}">Logout</a></p>
+{% endblock %}
