@@ -222,11 +222,9 @@ async def register_action(
             r"^[a-zA-Z0-9._%+-]+@nus\.edu\.sg$",
         ]
 
-        is_valid_nus_email = False
-        for domain_pattern in allowed_domains:
-            if re.search(domain_pattern, username.lower()):
-                is_valid_nus_email = True
-                break
+        is_valid_nus_email = any(
+            re.match(pattern, username.lower()) for pattern in allowed_domains
+        )
 
         if not is_valid_nus_email:
             return templates.TemplateResponse(
