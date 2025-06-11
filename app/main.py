@@ -296,7 +296,7 @@ async def register_action(
                     "request": request,
                     "error": "Username must be a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg).",
                     "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Pass this back
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
                     "lab_names": LAB_NAMES,  # Pass lab_names back
                     "username_value": username,  # Pass entered username back
                     "password_value": password,  # Pass entered password back
@@ -1066,7 +1066,8 @@ async def admin_dashboard(
                 conn.close()
 
     try:
-        users, instances, base_url = await run_in_threadpool(_get_admin_data)
+        result = await run_in_threadpool(_get_admin_data)
+        users, instances, base_url = result
         return templates.TemplateResponse(
             "admin_dashboard.html",
             {
@@ -1088,14 +1089,32 @@ async def admin_dashboard(
             status_code=status.HTTP_302_FOUND,
         )
     except Exception as e_general:
+        # Log the type of e_general as well, it might be informative
         logging.error(
-            f"Unexpected error in admin_dashboard: {e_general}", exc_info=True
+            f"Unexpected error in admin_dashboard ({type(e_general).__name__}): {e_general}",
+            exc_info=True,
         )
-        error_message = quote(
+
+        # Prepare the error message for the redirect
+        error_message_text_for_redirect = (
             "An unexpected error occurred while trying to load the admin page."
         )
+        quoted_error_for_url = "unexpected_error_fallback"  # Default fallback
+
+        try:
+            # Explicitly import and use urllib.parse.quote to avoid ambiguity
+            import urllib.parse
+
+            quoted_error_for_url = urllib.parse.quote(error_message_text_for_redirect)
+        except Exception as quote_formatting_error:
+            logging.error(
+                f"Failed to quote the error message for redirect: {quote_formatting_error}",
+                exc_info=True,
+            )
+            # Fallback 'unexpected_error_fallback' will be used.
+
         return RedirectResponse(
-            url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
+            url=f"/dashboard?error={quoted_error_for_url}",
             status_code=status.HTTP_302_FOUND,
         )
     # The finally block for db.close() is removed from here as it's handled within _get_admin_data
