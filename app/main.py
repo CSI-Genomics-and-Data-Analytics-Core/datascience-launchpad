@@ -502,17 +502,28 @@ async def stop_rstudio_instance(
     request: Request,
     current_user: dict = Depends(get_current_active_user),
 ):
+    # Allow admin to stop any container, user can only stop their own
     db = get_db()
     instance = db.execute(
-        "SELECT * FROM rstudio_instances WHERE id = ? AND user_id = ?",
-        (instance_id, current_user["id"]),
+        "SELECT * FROM rstudio_instances WHERE id = ?",
+        (instance_id,),
     ).fetchone()
 
     if not instance:
         db.close()
-        error_message = quote("Instance not found or not yours.")
+        error_message = quote("Instance not found.")
         return RedirectResponse(
-            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    # Only allow non-admins to stop their own containers
+    if not current_user.get("is_admin") and instance["user_id"] != current_user["id"]:
+        db.close()
+        error_message = quote("You are not authorized to stop this instance.")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
         )
 
     container_name = instance["container_name"]
@@ -526,7 +537,6 @@ async def stop_rstudio_instance(
     try:
         stop_cmd = ["docker", "stop", container_name]
         logging.info(f"Executing: {' '.join(stop_cmd)}")
-        # Using check=False to handle non-zero exit codes manually
         stop_process = subprocess.run(
             stop_cmd, capture_output=True, text=True, check=False
         )
@@ -540,18 +550,13 @@ async def stop_rstudio_instance(
             )
         else:
             stderr_msg = stop_process.stderr.strip()
-            # Log the full stderr for better debugging, regardless of known patterns
             logging.warning(f"Output from 'docker stop {container_name}': {stderr_msg}")
-
-            # Check for known non-critical error messages
             if "No such container" in stderr_msg:
                 logging.info(f"Container {container_name} was already removed.")
                 success_message_parts.append(
                     f"Instance '{container_name}' was already stopped/removed."
                 )
-            elif (
-                "is already in progress" in stderr_msg.lower()
-            ):  # Case-insensitive check
+            elif "is already in progress" in stderr_msg.lower():
                 logging.info(
                     f"Container {container_name} removal was already in progress."
                 )
@@ -559,14 +564,10 @@ async def stop_rstudio_instance(
                     f"Instance '{container_name}' stop/removal was already in progress."
                 )
             else:
-                # Accumulate other Docker errors
                 error_accumulator.append(
                     f"Docker stop issue: {stderr_msg if stderr_msg else 'Unknown error from docker stop'}"
                 )
 
-        # Update DB status to 'stopped' and record 'stopped_at' time
-        # This happens even if docker stop had minor issues like "no such container"
-        # as the goal is to mark the instance as stopped in our system.
         cursor = db.cursor()
         current_time_utc = datetime.utcnow()
         cursor.execute(
@@ -585,11 +586,8 @@ async def stop_rstudio_instance(
             exc_info=True,
         )
         error_accumulator.append(f"Unexpected critical error: {str(e)}")
-        # Attempt to mark as error in DB if a critical exception occurred, and if DB connection is still viable
-        # This is a best-effort, as the DB connection itself might be the source of the error.
         if db:
             try:
-                # Check current status before overriding to 'error', to avoid overwriting a successful 'stopped'
                 current_status_row = db.execute(
                     "SELECT status FROM rstudio_instances WHERE id = ?", (instance_id,)
                 ).fetchone()
@@ -609,21 +607,17 @@ async def stop_rstudio_instance(
                 )
 
     finally:
-        if db:  # Ensure db connection is closed
+        if db:
             db.close()
 
-    # Construct redirect response
     if error_accumulator:
-        # Errors occurred that were not "No such container" or "removal in progress"
         full_error_detail = "; ".join(error_accumulator)
-        # Append any partial success messages (like DB update) to provide full context
         combined_message = f"Error(s) stopping instance '{container_name}': {full_error_detail}. {' '.join(success_message_parts)}"
         final_message = quote(combined_message)
         return RedirectResponse(
             url=f"/dashboard?error={final_message}", status_code=status.HTTP_302_FOUND
         )
     else:
-        # No critical errors, and any Docker messages were handled as non-critical
         final_success_message = quote(" ".join(success_message_parts))
         return RedirectResponse(
             url=f"/dashboard?message={final_success_message}",
@@ -632,35 +626,28 @@ async def stop_rstudio_instance(
 
 
 @app.post("/delete_rstudio/{instance_id}", name="delete_rstudio_instance")
-async def delete_rstudio_instance_action(  # Renamed function to avoid conflict
+async def delete_rstudio_instance_action(
     request: Request,
     instance_id: int,
     current_user: dict = Depends(get_current_active_user),
 ):
-    db = get_db()
-    instance = db.execute(
-        "SELECT * FROM rstudio_instances WHERE id = ? AND user_id = ?",
-        (instance_id, current_user["id"]),
-    ).fetchone()
-
-    if not instance:
-        db.close()
-        # E501: Line shortened
-        error_message = quote(
-            "Instance not found or you are not authorized to delete it."
-        )
+    # Only allow admin to delete records
+    if not current_user.get("is_admin"):
+        error_message = quote("Only admin users can delete instance records.")
         return RedirectResponse(
             url=f"/dashboard?error={error_message}",
             status_code=status.HTTP_302_FOUND,
         )
+    db = get_db()
+    instance = db.execute(
+        "SELECT * FROM rstudio_instances WHERE id = ?",
+        (instance_id,),
+    ).fetchone()
 
-    # Only allow deletion of stopped, expired, or errored instances by the user
-    # Actual container should be stopped/removed by the stop_rstudio_instance
-    if instance["status"] not in ["stopped", "expired", "error", "stopped_expired"]:
+    if not instance:
         db.close()
-        # E501: Line shortened
         error_message = quote(
-            f"Instance in '{instance['status']}' state. Stop it first to delete."
+            "Instance not found or you are not authorized to delete it."
         )
         return RedirectResponse(
             url=f"/dashboard?error={error_message}",
@@ -670,7 +657,6 @@ async def delete_rstudio_instance_action(  # Renamed function to avoid conflict
     try:
         db.execute("DELETE FROM rstudio_instances WHERE id = ?", (instance_id,))
         db.commit()
-        # E501: Line shortened
         success_message = quote(
             f"Instance record '{instance['container_name']}' deleted successfully."
         )
@@ -679,10 +665,8 @@ async def delete_rstudio_instance_action(  # Renamed function to avoid conflict
             status_code=status.HTTP_302_FOUND,
         )
     except sqlite3.Error as e:
-        db.rollback()  # Rollback in case of error
-        # E501: Line shortened
+        db.rollback()
         error_message = quote(f"Database error while deleting instance: {str(e)}")
-        # Log the error server-side
         logging.error(f"Failed to delete instance ID {instance_id} from database: {e}")
         return RedirectResponse(
             url=f"/dashboard?error={error_message}",

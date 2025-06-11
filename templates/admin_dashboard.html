@@ -53,10 +53,16 @@
           style="display: inline"
         >
           <input type="hidden" name="admin_stop" value="true" />
-          <!-- Optional: for different logic if admin stops -->
           <button type="submit">Stop</button>
         </form>
         {% endif %}
+        <form
+          method="post"
+          action="{{ url_for('delete_rstudio_instance', instance_id=instance.id) }}"
+          style="display: inline"
+        >
+          <button type="submit">Delete</button>
+        </form>
       </td>
     </tr>
     {% endfor %}
