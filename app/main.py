@@ -12,6 +12,7 @@ from datetime import datetime  # Added import for datetime
 import dotenv  # Import dotenv
 from urllib.parse import quote  # Added for URL encoding messages
 from passlib.context import CryptContext  # Import CryptContext
+import re  # Import re for regular expressions
 
 # Load environment variables from .env file if it exists
 dotenv.load_dotenv()
@@ -214,26 +215,28 @@ async def register_action(
     username = username.strip()  # Remove leading/trailing whitespace
 
     # Validate username format if not the initial admin
-    # if username.lower() != INITIAL_ADMIN_USERNAME.lower():
-    # allowed_domains = [
-    #     r"^[a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg$",
-    #     r"^[a-zA-Z0-9._%+-]+@u\.nus\.edu$",
-    #     r"^[a-zA-Z0-9._%+-]+@nus\.edu\.sg$",
-    # ]
+    if username.lower() != INITIAL_ADMIN_USERNAME.lower():
+        allowed_domains = [
+            r"^[a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg$",
+            r"^[a-zA-Z0-9._%+-]+@u\.nus\.edu$",
+            r"^[a-zA-Z0-9._%+-]+@nus\.edu\.sg$",
+        ]
 
-    # is_valid_nus_email = any(
-    #     re.match(pattern, username.lower()) for pattern in allowed_domains
-    # )
+        # Use fullmatch instead of match to ensure the entire string matches the pattern
+        is_valid_nus_email = any(
+            re.fullmatch(pattern, username.lower()) for pattern in allowed_domains
+        )
 
-    # if not is_valid_nus_email:
-    #     return templates.TemplateResponse(
-    #         "register.html",
-    #         {
-    #             "request": request,
-    #             "error": "Username must be a valid NUS email address (e.g., @visitor.nus.edu.sg, @u.nus.edu, @nus.edu.sg).",
-    #             "title": "Register",
-    #         },
-    #     )
+        if not is_valid_nus_email:
+            logging.warning(f"Invalid email format attempted: {username}")
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "error": "Username must be a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg).",
+                    "title": "Register",
+                },
+            )
 
     db = get_db()
     try:
