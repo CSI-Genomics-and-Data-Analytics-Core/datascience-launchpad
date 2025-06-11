@@ -16,6 +16,17 @@ endblock %} {% block content %}
       <p class="card-text">
         Request a new RStudio instance or manage your existing ones below.
       </p>
+      <div class="mb-3">
+        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2 me-2">
+          <i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}
+        </div>
+        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2 me-2">
+          <i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}
+        </div>
+        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2">
+          <i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}
+        </div>
+      </div>
       <form
         action="{{ url_for('request_rstudio_instance') }}"
         method="post"
@@ -96,13 +107,45 @@ endblock %} {% block content %}
                     <i class="bi bi-stop-circle"></i> Stop
                   </button>
                 </form>
-                <p class="mt-2 mb-0 text-start">
-                  <small>
-                    RStudio Login:<br />
-                    Username: <strong>{{ user.username }}</strong><br />
-                    Password: <strong>{{ instance.password }}</strong>
-                  </small>
-                </p>
+                <button type="button" class="btn btn-info btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
+                  <i class="bi bi-key"></i> View Login Info
+                </button>
+
+                <!-- Modal for credentials -->
+                <div class="modal fade" id="credentials-{{ instance.id }}" tabindex="-1" aria-labelledby="credentialsModalLabel-{{ instance.id }}" aria-hidden="true">
+                  <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">RStudio Login Credentials</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <div class="alert alert-info">
+                          <p class="mb-0">Use these credentials to log in when prompted by RStudio:</p>
+                        </div>
+                        <div class="card">
+                          <div class="card-body">
+                            <p><strong>Username:</strong> {% if '@' in user.username %}{{ user.username.split('@')[0] }}{% else %}{{ user.username }}{% endif %}</p>
+                            <p><strong>Password:</strong> {{ instance.password }}</p>
+                            <hr>
+                            <div class="mb-0">
+                              <strong>Resources:</strong>
+                              <ul class="list-unstyled mt-1">
+                                <li><i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}</li>
+                                <li><i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}</li>
+                                <li><i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}</li>
+                              </ul>
+                            </div>
+                            <p><small class="text-muted">Note: For email addresses, only the part before @ is used as username.</small></p>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {% elif instance.status == 'requested' %}
                 <span class="text-muted fst-italic">Processing...</span>
                 <div

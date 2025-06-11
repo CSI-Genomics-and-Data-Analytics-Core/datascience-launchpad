@@ -24,6 +24,8 @@ endblock %} {% block content %}
           <th>Created At</th>
           <th>Expires At</th>
           <th>Stopped At</th>
+          <th>Resources</th>
+          <th>Access URL</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -52,6 +54,60 @@ endblock %} {% block content %}
           <td>
             {{ instance.stopped_at.strftime('%Y-%m-%d %H:%M:%S') if
             instance.stopped_at else 'N/A' }}
+          </td>
+          <td>
+            <ul class="list-unstyled mb-0">
+              <li><strong>Memory:</strong> {{ memory_limit }}</li>
+              <li><strong>CPUs:</strong> {{ cpu_limit }}</li>
+              <li><strong>Storage:</strong> {{ storage_limit }}</li>
+            </ul>
+          </td>
+          <td>
+            {% if instance.status == 'running' %}
+              <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank" class="btn btn-primary btn-sm">
+                Access RStudio
+              </a>
+              <button type="button" class="btn btn-outline-info btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
+                <i class="bi bi-key"></i> Credentials
+              </button>
+
+              <!-- Modal for credentials -->
+              <div class="modal fade" id="credentials-{{ instance.id }}" tabindex="-1" aria-labelledby="credentialsModalLabel-{{ instance.id }}" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">RStudio Login Credentials</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="card">
+                        <div class="card-header bg-light">
+                          <strong>Instance ID:</strong> {{ instance.id }} ({{ instance.container_name }})
+                        </div>
+                        <div class="card-body">
+                          <p><strong>URL:</strong> <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank">http://{{ request.url.hostname }}:{{ instance.port }}</a></p>
+                          <p><strong>Username:</strong> {% if '@' in instance.owner_username %}{{ instance.owner_username.split('@')[0] }}{% else %}{{ instance.owner_username }}{% endif %}</p>
+                          <p><strong>Password:</strong> {% if instance.password %}{{ instance.password }}{% else %}<em>Not available</em>{% endif %}</p>
+                          <hr>
+                          <p><strong>Resources:</strong></p>
+                          <ul class="list-unstyled">
+                            <li><i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}</li>
+                            <li><i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}</li>
+                            <li><i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}</li>
+                          </ul>
+                          <p><small class="text-muted">Note: For email addresses, only the part before @ is used as username.</small></p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% else %}
+              <span class="text-muted">N/A</span>
+            {% endif %}
           </td>
           <td>
             {% if instance.status == 'running' or instance.status == 'requested'

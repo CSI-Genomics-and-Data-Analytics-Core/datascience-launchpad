@@ -160,7 +160,7 @@ def init_db():
     )
 
     # Ensure the admin user exists
-    admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin@example.com")
+    admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
     admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "adminpass")
 
     cursor.execute("SELECT * FROM users WHERE username = ?", (admin_username,))
@@ -476,6 +476,10 @@ async def dashboard(
             "instances": processed_instances,  # Pass processed instances
             "base_url": base_url,
             "title": "Dashboard",
+            "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
+            "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
+            "storage_limit": RSTUDIO_USER_STORAGE_LIMIT
+            or "Not specified",  # Add storage limit
         },
     )
 
@@ -584,7 +588,7 @@ async def request_rstudio_instance(
             "-p",
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
             "-e",
-            f"USER={username_part}",  # Use username_part for the RStudio USER env variable
+            f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
             RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
         # Add storage limit if specified and not empty
@@ -1089,6 +1093,10 @@ async def admin_dashboard(
                 "instances": processed_instances,
                 "base_url": base_url,
                 "title": "Admin Dashboard",
+                "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
+                "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
+                "storage_limit": RSTUDIO_USER_STORAGE_LIMIT
+                or "Not specified",  # Add storage limit
             },
         )
 
