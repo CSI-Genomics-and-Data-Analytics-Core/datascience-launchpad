@@ -450,9 +450,17 @@ async def stop_rstudio_instance(
                 logging.error(
                     f"Error stopping container {container_name}: {stop_result.stderr}"
                 )
+                # Even if stopping fails (and it's not 'No such container'),
+                # mark as stopped in DB as we can't manage it anymore.
+                db.execute(
+                    """UPDATE rstudio_instances SET status = 'stopped',
+                       container_id = NULL WHERE id = ?""",
+                    (instance_id,),
+                )
+                db.commit()
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to stop RStudio container {container_name}: {stop_result.stderr}",
+                    detail=f"Failed to stop RStudio container {container_name}. Instance marked as stopped.",
                 )
             logging.info(
                 f"Container {container_name} already stopped or does not exist (stop command)."
@@ -467,12 +475,15 @@ async def stop_rstudio_instance(
         )
         if rm_result.returncode != 0:
             if "No such container" not in rm_result.stderr:
-                logging.error(
-                    f"Error removing container {container_name}: {rm_result.stderr}"
+                db.execute(
+                    """UPDATE rstudio_instances SET status = 'stopped',
+                       container_id = NULL WHERE id = ?""",
+                    (instance_id,),
                 )
+                db.commit()
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to remove RStudio container {container_name}: {rm_result.stderr}",
+                    detail=f"Failed to remove RStudio container {container_name}.  Instance marked as stopped.",
                 )
             logging.info(
                 f"Container {container_name} already removed or does not exist (rm command)."
