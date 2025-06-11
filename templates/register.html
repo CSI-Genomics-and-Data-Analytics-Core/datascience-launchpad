@@ -27,9 +27,13 @@
                 title="Must be a valid NUS email (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg)"
                 required
               />
-              <small id="usernameHelp" class="form-text text-muted"
-                >We'll never share your email with anyone else.</small
-              >
+              <small id="usernameHelp" class="form-text text-muted">
+                We'll never share your email with anyone else.<br>
+                <strong>Accepted NUS email formats:</strong><br>
+                user@nus.edu.sg<br>
+                user@u.nus.edu<br>
+                user@visitor.nus.edu.sg
+              </small>
             </div>
             <div class="mb-3">
               <label for="password" class="form-label">Password</label>
@@ -103,10 +107,7 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    const initialAdminUsername =
-      "{{ initial_admin_username.lower() if initial_admin_username else '' }}";
     const registrationForm = document.getElementById("registrationForm");
-    const usernameInput = document.getElementById("username");
     const labNameSelect = document.getElementById("lab_name_select");
     const otherLabNameDiv = document.getElementById("other_lab_name_div");
     const otherLabNameInput = document.getElementById("lab_name_other");
@@ -129,16 +130,8 @@
       labNameSelect.addEventListener("change", toggleOtherLabNameField);
     }
 
-    if (registrationForm && usernameInput) {
+    if (registrationForm) {
       registrationForm.addEventListener("submit", function (event) {
-        const usernameValue = usernameInput.value.trim().toLowerCase();
-        if (initialAdminUsername && usernameValue === initialAdminUsername) {
-          alert(
-            "This username is reserved for the admin account and cannot be registered."
-          );
-          event.preventDefault(); // Prevent form submission
-          return false;
-        }
         if (
           labNameSelect.value === "Other" &&
           otherLabNameInput.value.trim() === ""
