@@ -10,21 +10,6 @@ endblock %} {% block content %}
     {% endif %}
   </div>
 
-  {% with messages = request.query_params.get('message') %} {% if messages %}
-  <div class="alert alert-info" role="alert">{{ messages }}</div>
-  {% endif %} {% endwith %} {% with errors = request.query_params.get('error')
-  %} {% if errors %}
-  <div class="alert alert-danger" role="alert">
-    {{ errors|replace('Instance marked as stopped.', '')|replace('Failed to stop
-    RStudio container', 'Failed to stop/remove RStudio
-    instance')|replace('Failed to remove RStudio container', 'Failed to
-    stop/remove RStudio instance')|replace('No such container', 'Instance
-    already stopped or removed')|replace('docker:', '')|replace('Error response
-    from daemon:', '')|replace('b"', '')|replace('"', '')|replace('\\n',
-    '')|trim }}
-  </div>
-  {% endif %} {% endwith %}
-
   <div class="card mb-4">
     <div class="card-body text-center">
       <h5 class="card-title">Manage Your RStudio Access</h5>
