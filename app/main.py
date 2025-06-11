@@ -975,22 +975,16 @@ async def admin_dashboard(
             status_code=status.HTTP_302_FOUND,
         )
 
-    async def _get_admin_data():
-        conn = None  # Initialize conn to None
+    def _get_admin_data():
+        conn = None
         try:
-            # Use DATABASE (Path object) and convert to string for sqlite3.connect
             conn = sqlite3.connect(str(DATABASE))
-            conn.row_factory = sqlite3.Row  # Access columns by name
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-
-            # Fetch all users with created_at and lab_name
             cursor.execute(
                 "SELECT id, username, is_admin, created_at, lab_name FROM users ORDER BY id"
             )
             users_data = cursor.fetchall()
-
-            # Fetch all RStudio instances, sorted by status (running first) then created_at
-            # Ensure all necessary columns are selected for date parsing and display
             instances_query = """
                 SELECT id, user_id, container_name, container_id, port, password,
                        created_at, expires_at, status, stopped_at
@@ -1005,13 +999,12 @@ async def admin_dashboard(
                     END,
                     created_at DESC
             """
-            instances_cursor = cursor.execute(instances_query)  # Use cursor to execute
+            instances_cursor = cursor.execute(instances_query)
             instances_data = instances_cursor.fetchall()
-            # Convert Row objects to dictionaries and parse dates for users
             users_list = []
             for u_row in users_data:
                 user_dict = dict(u_row)
-                user_dict["lab_name"] = u_row["lab_name"]  # Add lab_name
+                user_dict["lab_name"] = u_row["lab_name"]
                 if user_dict.get("created_at"):
                     raw_created_at = user_dict["created_at"]
                     if isinstance(raw_created_at, str):
@@ -1040,22 +1033,17 @@ async def admin_dashboard(
                         )
                         user_dict["created_at"] = None
                 users_list.append(user_dict)
-
             processed_instances = []
-            # Process instances (this part is CPU/memory bound, not DB I/O)
             for raw_instance in instances_data:
                 instance_dict = dict(raw_instance)
                 for field in ["created_at", "expires_at", "stopped_at"]:
                     value = instance_dict.get(field)
                     if value and isinstance(value, str):
                         try:
-                            # Handles "YYYY-MM-DD HH:MM:SS.ffffff" or "YYYY-MM-DDTHH:MM:SS.ffffff"
-                            # and also "YYYY-MM-DD HH:MM:SS" if space is used as separator
                             instance_dict[field] = datetime.fromisoformat(
                                 value.replace(" ", "T")
                             )
                         except ValueError:
-                            # Fallback for "YYYY-MM-DD HH:MM:SS" if fromisoformat fails (e.g. older Python or truly different format)
                             try:
                                 instance_dict[field] = datetime.strptime(
                                     value, "%Y-%m-%d %H:%M:%S"
@@ -1071,66 +1059,22 @@ async def admin_dashboard(
                         )
                         instance_dict[field] = None
                 processed_instances.append(instance_dict)
-
             base_url = str(request.base_url).rstrip("/")
-
-            return templates.TemplateResponse(
-                "admin_dashboard.html",
-                {
-                    "request": request,
-                    "user": current_user,  # For the nav bar context
-                    "users": users_list,
-                    "instances": processed_instances,
-                    "base_url": base_url,  # For constructing RStudio links if needed
-                    "title": "Admin Dashboard",
-                },
-            )
+            return users_list, processed_instances, base_url
         finally:
             if conn:
-                conn.close()  # Close connection inside the thread
+                conn.close()
 
     try:
-        # Execute the synchronous database operations in a thread pool
-        users, instances_raw = await run_in_threadpool(_get_admin_data)
-
-        # Process instances (this part is CPU/memory bound, not DB I/O)
-        processed_instances = []
-        for raw_instance in instances_raw:
-            instance_dict = dict(raw_instance)
-            for field in ["created_at", "expires_at", "stopped_at"]:
-                value = instance_dict.get(field)
-                if value and isinstance(value, str):
-                    try:
-                        instance_dict[field] = datetime.fromisoformat(
-                            value.replace(" ", "T")
-                        )
-                    except ValueError:
-                        try:
-                            instance_dict[field] = datetime.strptime(
-                                value, "%Y-%m-%d %H:%M:%S"
-                            )
-                        except ValueError as e_strptime:
-                            logging.warning(
-                                f"Admin Dashboard: Could not parse date string '{value}' for field '{field}' in instance ID {instance_dict.get('id')}. Error: {e_strptime}. Setting to None."
-                            )
-                            instance_dict[field] = None
-                elif not isinstance(value, datetime) and value is not None:
-                    logging.warning(
-                        f"Admin Dashboard: Unexpected type '{type(value)}' for date field '{field}' in instance ID {instance_dict.get('id')}. Setting to None."
-                    )
-                    instance_dict[field] = None
-            processed_instances.append(instance_dict)
-
-        base_url = str(request.base_url).rstrip("/")
-
+        users, instances, base_url = await run_in_threadpool(_get_admin_data)
         return templates.TemplateResponse(
             "admin_dashboard.html",
             {
                 "request": request,
-                "user": current_user,  # For the nav bar context
+                "user": current_user,
                 "users": users,
-                "instances": processed_instances,
-                "base_url": base_url,  # For constructing RStudio links if needed
+                "instances": instances,
+                "base_url": base_url,
                 "title": "Admin Dashboard",
             },
         )
