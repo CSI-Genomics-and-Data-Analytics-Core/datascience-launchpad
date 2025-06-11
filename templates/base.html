@@ -18,48 +18,74 @@
       }
       .content-wrapper {
         flex: 1;
-        padding-top: 70px; /* Adjust based on navbar height */
-        padding-bottom: 20px;
+        padding-top: 80px; /* Increased to accommodate larger navbar if needed */
+        padding-bottom: 40px; /* Increased padding */
       }
       .navbar {
         background-color: #343a40; /* Dark navbar */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        padding-top: 0.8rem; /* Add some padding */
+        padding-bottom: 0.8rem;
       }
       .navbar-brand img {
-        height: 40px; /* Adjust as needed */
-        margin-right: 10px;
+        height: 50px; /* Increased logo size */
+        margin-right: 15px; /* Increased margin */
       }
       .navbar-brand,
       .nav-link {
         color: #ffffff !important; /* White text */
       }
+      .navbar-nav .nav-item {
+        margin-left: 0.5rem; /* Spacing between nav items */
+      }
+      .navbar-nav .nav-link {
+        padding-left: 0.8rem; /* Padding within nav links */
+        padding-right: 0.8rem;
+      }
       .navbar-brand:hover,
       .nav-link:hover {
-        color: #f8f9fa !important; /* Lighter white on hover */
+        color: #e9ecef !important; /* Lighter white on hover */
       }
       .footer {
         background-color: #343a40; /* Dark footer */
-        color: #ffffff; /* White text */
-        padding: 1rem 0;
+        color: #adb5bd; /* Lighter text color for footer */
+        padding: 1.5rem 0; /* Increased padding */
         text-align: center;
         font-size: 0.9rem;
       }
+      .footer small {
+        color: #6c757d; /* Even lighter for the 'designed by' text */
+      }
       .card {
-        border: none;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid #dee2e6; /* Softer border */
+        box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05); /* Softer shadow */
+        margin-top: 2rem; /* More space above cards */
+      }
+      .card-body {
+        padding: 2rem; /* More padding inside cards */
       }
       .btn-primary {
         background-color: #007bff;
         border-color: #007bff;
+        padding: 0.5rem 1rem; /* Adjust button padding */
+        font-size: 1rem; /* Adjust button font size */
       }
       .btn-primary:hover {
         background-color: #0056b3;
         border-color: #0056b3;
       }
       .alert {
-        margin-top: 1rem;
+        margin-top: 1.5rem; /* More space for alerts */
+        padding: 1rem; /* More padding for alerts */
       }
       .table thead th {
         background-color: #e9ecef; /* Light gray table header */
+      }
+      .jumbotron {
+        background-color: #ffffff; /* White background for jumbotron */
+        padding: 3rem 2rem;
+        border-radius: 0.3rem;
+        box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05);
       }
     </style>
   </head>
@@ -71,7 +97,7 @@
             src="{{ url_for('static', path='logo.png') }}"
             alt="CSI NUS Logo"
           />
-          RStudio Portal
+          CSI-GeDaC RStudio Portal
         </a>
         <button
           class="navbar-toggler"
@@ -137,6 +163,14 @@
           >This portal designed by GeDaC (Genomic and Data Analytics Core) of
           CSI, NUS.</small
         >
+      </div>
+      <div class="container text-center">
+        <p>
+          &copy; 2024 RStudio Portal. All rights reserved. Learn more at
+          <a href="https://www.gedac.org/" class="text-white"
+            >https://www.gedac.org/</a
+          >.
+        </p>
       </div>
     </footer>
 
