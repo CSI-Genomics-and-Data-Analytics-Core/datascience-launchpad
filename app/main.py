@@ -699,18 +699,27 @@ async def admin_dashboard(request: Request, db: sqlite3.Connection = Depends(get
     instances = []
     for inst_raw in instances_raw:
         inst = dict(inst_raw)  # Convert row to dict for easier manipulation
-        if inst["created_at"] and isinstance(inst["created_at"], str):
-            inst["created_at"] = datetime.strptime(
-                inst["created_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
-            )
-        if inst["expires_at"] and isinstance(inst["expires_at"], str):
-            inst["expires_at"] = datetime.strptime(
-                inst["expires_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
-            )
-        if inst["stopped_at"] and isinstance(inst["stopped_at"], str):
-            inst["stopped_at"] = datetime.strptime(
-                inst["stopped_at"].split(".")[0], "%Y-%m-%d %H:%M:%S"
-            )
+        for field in ["created_at", "expires_at", "stopped_at"]:
+            value = inst.get(field)
+            if value and isinstance(value, str):
+                try:
+                    # Handles "YYYY-MM-DD HH:MM:SS.ffffff" or "YYYY-MM-DDTHH:MM:SS.ffffff"
+                    # and also "YYYY-MM-DD HH:MM:SS" if space is used as separator
+                    inst[field] = datetime.fromisoformat(value.replace(" ", "T"))
+                except ValueError:
+                    # Fallback for "YYYY-MM-DD HH:MM:SS"
+                    try:
+                        inst[field] = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                    except ValueError as e_strptime:
+                        logging.warning(
+                            f"Admin: Could not parse date string '{value}' for field '{field}' in instance ID {inst.get('id')}. Error: {e_strptime}. Setting to None."
+                        )
+                        inst[field] = None
+            elif not isinstance(value, datetime) and value is not None:
+                logging.warning(
+                    f"Admin: Unexpected type '{type(value)}' for date field '{field}' in instance ID {inst.get('id')}. Setting to None."
+                )
+                inst[field] = None
         instances.append(inst)
 
     return templates.TemplateResponse(
