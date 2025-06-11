@@ -1066,7 +1066,10 @@ async def admin_dashboard(
                 conn.close()
 
     try:
-        result = await run_in_threadpool(_get_admin_data)
+        # Call _get_admin_data() function first to get the data function, not the coroutine
+        data_function = _get_admin_data
+        # Now use run_in_threadpool with the function result
+        result = await run_in_threadpool(data_function)
         users, instances, base_url = result
         return templates.TemplateResponse(
             "admin_dashboard.html",
@@ -1088,33 +1091,32 @@ async def admin_dashboard(
             url=f"/dashboard?error={error_message}",  # Redirect to user dashboard with error
             status_code=status.HTTP_302_FOUND,
         )
-    except Exception as e_general:
-        # Log the type of e_general and rely on exc_info=True for the full original error
+    except Exception:
+        # Completely avoid referencing e_general in any string formatting
         logging.error(
-            f"Unexpected error in admin_dashboard. Exception type: {type(e_general).__name__}. Original error details follow.",
-            exc_info=True,  # This will log the full details of e_general
+            "Unexpected error in admin_dashboard. See traceback:", exc_info=True
         )
 
-        # Prepare the error message for the redirect
-        error_message_text_for_redirect = (
-            "An unexpected error occurred while trying to load the admin page."
-        )
-        quoted_error_for_url = "unexpected_error_fallback"  # Default fallback
-
+        # Hard-code a simple error message for the redirect
+        error_message = "unexpected_error_occurred"
         try:
-            # Explicitly import and use urllib.parse.quote to avoid ambiguity
+            # Use a simple string that won't cause any issues with formatting
+            error_text = (
+                "An unexpected error occurred while trying to load the admin page."
+            )
             import urllib.parse
 
-            quoted_error_for_url = urllib.parse.quote(error_message_text_for_redirect)
-        except Exception as quote_formatting_error:
+            error_message = urllib.parse.quote(error_text)
+        except Exception as quote_error:
+            # If even this fails, use the hard-coded fallback
             logging.error(
-                f"Failed to quote the error message for redirect: {quote_formatting_error}",
+                f"Failed to encode error message for redirect: {quote_error}",
                 exc_info=True,
             )
-            # Fallback 'unexpected_error_fallback' will be used.
 
+        # Simple redirect with minimal string operations
         return RedirectResponse(
-            url=f"/dashboard?error={quoted_error_for_url}",
+            url=f"/dashboard?error={error_message}",
             status_code=status.HTTP_302_FOUND,
         )
     # The finally block for db.close() is removed from here as it's handled within _get_admin_data
