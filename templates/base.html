@@ -18,7 +18,7 @@
       }
       .content-wrapper {
         flex: 1;
-        padding-top: 80px; /* Increased to accommodate larger navbar if needed */
+        padding-top: 140px; /* Increased to accommodate larger navbar */
         padding-bottom: 40px; /* Increased padding */
       }
       .navbar {
@@ -89,6 +89,24 @@
         border-radius: 0.3rem;
         box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05);
       }
+      .nav-action-link {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #f8f9fa; /* Bootstrap's light color */
+        border-radius: 0.25rem;
+        color: #ffffff !important;
+        text-decoration: none;
+        font-size: 0.875em;
+        margin-left: 0.5rem; /* Maintain some spacing */
+        transition:
+          color 0.15s ease-in-out,
+          background-color 0.15s ease-in-out,
+          border-color 0.15s ease-in-out;
+      }
+      .nav-action-link:hover {
+        color: #343a40 !important; /* Dark text on hover - navbar background */
+        background-color: #f8f9fa; /* Light background on hover */
+        border-color: #f8f9fa;
+      }
     </style>
   </head>
   <body>
@@ -128,24 +146,18 @@
             </li>
             {% endif %}
             <li class="nav-item">
-              <a
-                class="btn btn-outline-light btn-sm"
-                href="{{ url_for('logout') }}"
+              <a class="nav-action-link" href="{{ url_for('logout') }}"
                 >Logout ({{ request.cookies.get("username") }})</a
               >
             </li>
             {% else %}
             <li class="nav-item">
-              <a
-                class="btn btn-outline-light btn-sm"
-                href="{{ url_for('login_page') }}"
+              <a class="nav-action-link" href="{{ url_for('login_page') }}"
                 >Login</a
               >
             </li>
             <li class="nav-item">
-              <a
-                class="btn btn-light btn-sm"
-                href="{{ url_for('register_page') }}"
+              <a class="nav-action-link" href="{{ url_for('register_page') }}"
                 >Register</a
               >
             </li>

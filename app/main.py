@@ -359,17 +359,16 @@ async def request_rstudio_instance(
             "USER=rstudio",  # Default user in rocker/rstudio
             "-v",
             f"{user_specific_data_dir.resolve()}:/home/rstudio",
+            "--rm",
             "-p",
-            f"{host_port}:{RSTUDIO_MIN_PORT}",  # RStudio inside container
-            # always runs on its default
-            # (e.g. 8787, so RSTUDIO_MIN_PORT
-            # can represent this internal port)
+            f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
+            "-e",
+            f"USER={username}",
+            RSTUDIO_DOCKER_IMAGE,  # Use configured Docker image
         ]
         # Add storage limit if specified and not empty
         if RSTUDIO_USER_STORAGE_LIMIT and RSTUDIO_USER_STORAGE_LIMIT.strip():
             cmd.extend(["--storage-opt", f"size={RSTUDIO_USER_STORAGE_LIMIT}"])
-
-        cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use configured Docker image
 
         logging.info(
             f"Attempting to run RStudio container with command: {' '.join(cmd)}"
@@ -470,6 +469,67 @@ async def stop_rstudio_instance(
         db.close()
 
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/delete_rstudio/{instance_id}", name="delete_rstudio_instance")
+async def delete_rstudio_instance_action(  # Renamed function to avoid conflict
+    request: Request,
+    instance_id: int,
+    current_user: dict = Depends(get_current_active_user),
+):
+    db = get_db()
+    instance = db.execute(
+        "SELECT * FROM rstudio_instances WHERE id = ? AND user_id = ?",
+        (instance_id, current_user["id"]),
+    ).fetchone()
+
+    if not instance:
+        db.close()
+        # E501: Line shortened
+        error_message = quote(
+            "Instance not found or you are not authorized to delete it."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    # Only allow deletion of stopped, expired, or errored instances by the user
+    # Actual container should be stopped/removed by the stop_rstudio_instance
+    if instance["status"] not in ["stopped", "expired", "error", "stopped_expired"]:
+        db.close()
+        # E501: Line shortened
+        error_message = quote(
+            f"Instance in '{instance['status']}' state. Stop it first to delete."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    try:
+        db.execute("DELETE FROM rstudio_instances WHERE id = ?", (instance_id,))
+        db.commit()
+        # E501: Line shortened
+        success_message = quote(
+            f"Instance record '{instance['container_name']}' deleted successfully."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?message={success_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+    except sqlite3.Error as e:
+        db.rollback()  # Rollback in case of error
+        # E501: Line shortened
+        error_message = quote(f"Database error while deleting instance: {str(e)}")
+        # Log the error server-side
+        logging.error(f"Failed to delete instance ID {instance_id} from database: {e}")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+    finally:
+        db.close()
 
 
 @app.get("/logout")
