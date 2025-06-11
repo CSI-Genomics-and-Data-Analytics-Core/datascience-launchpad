@@ -204,7 +204,12 @@ async def login_action(
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     return templates.TemplateResponse(
-        "register.html", {"request": request, "title": "Register"}
+        "register.html",
+        {
+            "request": request,
+            "title": "Register",
+            "initial_admin_username": INITIAL_ADMIN_USERNAME,
+        },
     )
 
 
@@ -552,8 +557,7 @@ async def stop_rstudio_instance(
             status_code=status.HTTP_302_FOUND,
         )
 
-    # Only allow non-admins to stop their own containers
-    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
+    # Ensure 'is_admin' is accessed as a key, not with .get()
     if not current_user["is_admin"] and instance["user_id"] != current_user["id"]:
         db.close()
         error_message = quote("You are not authorized to stop this instance.")
@@ -563,6 +567,19 @@ async def stop_rstudio_instance(
         )
 
     container_name = instance["container_name"]
+    if not container_name:  # Check for empty container name
+        db.close()
+        logging.error(
+            f"Instance ID {instance_id} has an empty container name. Cannot stop."
+        )
+        error_message = quote(
+            "Instance has an invalid configuration (empty container name). Cannot proceed."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
     logging.info(
         f"User '{current_user['username']}' attempting to stop instance ID {instance_id} (Container: {container_name})"
     )
@@ -571,63 +588,149 @@ async def stop_rstudio_instance(
     success_message_parts = []
 
     try:
-        stop_cmd = ["docker", "stop", container_name]
-        logging.info(f"Executing: {' '.join(stop_cmd)}")
-        stop_process = subprocess.run(
-            stop_cmd, capture_output=True, text=True, check=False
-        )
+        # Step 1: Attempt to stop the Docker container
+        docker_stopped_or_not_found = False
+        try:
+            stop_cmd = ["docker", "stop", container_name]
+            logging.info(f"Executing: {' '.join(stop_cmd)}")
+            stop_process = subprocess.run(
+                stop_cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60,  # Added timeout
+            )
 
-        if stop_process.returncode == 0:
-            logging.info(
-                f"Successfully sent stop command to container {container_name}."
-            )
-            success_message_parts.append(
-                f"Instance '{container_name}' stop command processed."
-            )
-        else:
-            stderr_msg = stop_process.stderr.strip()
-            logging.warning(f"Output from 'docker stop {container_name}': {stderr_msg}")
-            if "No such container" in stderr_msg:
-                logging.info(f"Container {container_name} was already removed.")
-                success_message_parts.append(
-                    f"Instance '{container_name}' was already stopped/removed."
-                )
-            elif "is already in progress" in stderr_msg.lower():
+            if stop_process.returncode == 0:
                 logging.info(
-                    f"Container {container_name} removal was already in progress."
+                    f"Successfully sent stop command to container {container_name}."
                 )
                 success_message_parts.append(
-                    f"Instance '{container_name}' stop/removal was already in progress."
+                    f"Instance '{container_name}' stop command processed."
                 )
+                docker_stopped_or_not_found = True
             else:
-                error_accumulator.append(
-                    f"Docker stop issue: {stderr_msg if stderr_msg else 'Unknown error from docker stop'}"
+                stderr_msg = stop_process.stderr.strip()
+                logging.warning(
+                    f"Output from 'docker stop {container_name}': {stderr_msg}"
+                )
+                if "No such container" in stderr_msg:
+                    logging.info(f"Container {container_name} was already removed.")
+                    success_message_parts.append(
+                        f"Instance '{container_name}' was already stopped/removed."
+                    )
+                    docker_stopped_or_not_found = True
+                elif "is already in progress" in stderr_msg.lower():
+                    logging.info(
+                        f"Container {container_name} removal was already in progress."
+                    )
+                    success_message_parts.append(
+                        f"Instance '{container_name}' stop/removal was already in progress."
+                    )
+                    docker_stopped_or_not_found = True
+                else:
+                    error_accumulator.append(
+                        f"Docker stop issue: {stderr_msg if stderr_msg else 'Unknown error from docker stop'}"
+                    )
+        except FileNotFoundError:
+            logging.error(
+                "Docker command not found. Ensure Docker is installed and in PATH."
+            )
+            error_accumulator.append(
+                "Docker command not found. Please contact an administrator."
+            )
+        except PermissionError:
+            logging.error("Permission denied when trying to run Docker command.")
+            error_accumulator.append(
+                "Permission issue with Docker. Please contact an administrator."
+            )
+        except subprocess.TimeoutExpired:
+            logging.error(f"Docker stop command timed out for {container_name}.")
+            error_accumulator.append(
+                f"Stopping instance '{container_name}' timed out. It may still be processing."
+            )
+        except (
+            Exception
+        ) as docker_ex:  # Catch other unexpected errors during docker operation
+            logging.error(
+                f"Unexpected error during Docker stop for {container_name}: {docker_ex}",
+                exc_info=True,
+            )
+            error_accumulator.append(
+                f"An unexpected error occurred while trying to stop the container: {str(docker_ex)}"
+            )
+
+        # Step 2: Update database record
+        try:
+            cursor = db.cursor()
+            current_time_utc = datetime.utcnow()
+
+            if docker_stopped_or_not_found:
+                db_status_to_set = "stopped"
+                stopped_at_value = current_time_utc
+            else:
+                # If docker_stopped_or_not_found is False, it implies a Docker-related error
+                # occurred and was likely added to error_accumulator.
+                # The instance status should reflect an error in this case.
+                db_status_to_set = "error"
+                stopped_at_value = (
+                    None  # Do not set stopped_at if there was a docker error
                 )
 
-        cursor = db.cursor()
-        current_time_utc = datetime.utcnow()
-        cursor.execute(
-            "UPDATE rstudio_instances SET status = 'stopped', stopped_at = ? WHERE id = ?",
-            (current_time_utc, instance_id),
-        )
-        db.commit()
-        logging.info(
-            f"Instance {instance_id} (Container: {container_name}) status updated to 'stopped', stopped_at={current_time_utc.isoformat()} in DB."
-        )
-        success_message_parts.append("Instance record updated to 'stopped'.")
+            cursor.execute(
+                "UPDATE rstudio_instances SET status = ?, stopped_at = ? WHERE id = ?",
+                (db_status_to_set, stopped_at_value, instance_id),
+            )
+            db.commit()
+            logging.info(
+                f"Instance {instance_id} (Container: {container_name}) status updated to '{db_status_to_set}', stopped_at={stopped_at_value.isoformat() if stopped_at_value else 'None'} in DB."
+            )
+            # Only add to success_message_parts if the intended operation (stopping) was reflected
+            if db_status_to_set == "stopped":
+                success_message_parts.append(
+                    f"Instance record status updated to '{db_status_to_set}'."
+                )
+            elif db_status_to_set == "error" and not docker_stopped_or_not_found:
+                # If we set to error due to docker issue, it's not really a success part for the user message.
+                # It's already in error_accumulator.
+                pass
+
+        except sqlite3.Error as db_update_err:
+            logging.error(
+                f"Database error updating instance {instance_id} status: {db_update_err}",
+                exc_info=True,
+            )
+            error_accumulator.append(
+                f"Failed to update instance status in database: {str(db_update_err)}"
+            )
+            # If DB update fails, the overall operation is problematic, ensure an error is reflected
+            # even if docker part seemed to succeed.
+            if docker_stopped_or_not_found and not any(
+                "database" in e.lower() for e in error_accumulator
+            ):
+                error_accumulator.append(
+                    "Docker stop succeeded but database update failed."
+                )
 
     except Exception as e:
         logging.error(
             f"Unexpected critical error during stop operation for instance '{container_name}': {str(e)}",
             exc_info=True,
         )
-        error_accumulator.append(f"Unexpected critical error: {str(e)}")
+        # Avoid adding duplicate generic error if a more specific one was already added.
+        generic_error_msg = f"Unexpected critical error: {str(e)}"
+        if not any(generic_error_msg in acc_msg for acc_msg in error_accumulator):
+            error_accumulator.append(generic_error_msg)
+
         if db:
             try:
                 current_status_row = db.execute(
                     "SELECT status FROM rstudio_instances WHERE id = ?", (instance_id,)
                 ).fetchone()
-                if current_status_row and current_status_row["status"] != "stopped":
+                if current_status_row and current_status_row["status"] not in [
+                    "stopped",
+                    "error",
+                ]:
                     cursor = db.cursor()
                     cursor.execute(
                         "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
@@ -641,7 +744,6 @@ async def stop_rstudio_instance(
                 logging.error(
                     f"Failed to update instance status to 'error' during critical exception handling: {db_err}"
                 )
-
     finally:
         if db:
             db.close()
