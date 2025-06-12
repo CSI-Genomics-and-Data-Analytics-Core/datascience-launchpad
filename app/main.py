@@ -23,7 +23,6 @@ LAB_NAMES = [
     "Ashok VENKITARAMAN",
     "Boon Cher GOH",
     "Edward Kai-Hua CHOW",
-    "Daniel G. TENEN",
     "Dario Campana",
     "David TAN",
     "Dennis KAPPEI",
@@ -32,14 +31,12 @@ LAB_NAMES = [
     "Melissa Jane FULLWOOD",
     "Patrick TAN",
     "Polly Leilei CHEN",
-    "Sriram SRIDHARAN",
     "Soo Chin LEE",
     "Takaomi SANDA",
     "Toshio SUDA",
     "Wai Leong TAM",
     "Wee Joo CHNG",
     "Yang ZHANG",
-    "Yoshiaki ITO",
     "Yvonne TAY",
     "GeDaC",
 ]
@@ -159,16 +156,8 @@ def init_db():
     )
     """
     )
-    # Add instance_type column to user_instances
-    # Check if instance_type column exists
-    cursor.execute("PRAGMA table_info(user_instances)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if "instance_type" not in columns:
-        cursor.execute(
-            "ALTER TABLE user_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
-        )
-        logger.info("Added 'instance_type' column to 'user_instances' table.")
 
+    # Ensure user_instances table exists before checking/altering columns
     cursor.execute(
         """
     CREATE TABLE IF NOT EXISTS user_instances (
@@ -187,6 +176,15 @@ def init_db():
     )
     """
     )
+
+    # Add instance_type column to user_instances if missing (for migration)
+    cursor.execute("PRAGMA table_info(user_instances)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "instance_type" not in columns:
+        cursor.execute(
+            "ALTER TABLE user_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
+        )
+        logger.info("Added 'instance_type' column to 'user_instances' table.")
 
     # Ensure the admin user exists
     admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
