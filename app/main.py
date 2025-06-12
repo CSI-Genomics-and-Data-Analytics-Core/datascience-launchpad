@@ -3,21 +3,20 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-import sqlite3
-import subprocess
-import secrets
+from datetime import datetime
+from urllib.parse import quote
+from passlib.context import CryptContext
 import os
-import logging  # Added import for logging
-from datetime import datetime  # Added import for datetime
-import dotenv  # Import dotenv
-from urllib.parse import quote  # Added for URL encoding messages
-from passlib.context import CryptContext  # Import CryptContext
-import re  # Import re for regular expressions
+import logging
+import dotenv
+import re
+import sqlite3
+import secrets
+import subprocess
 
 # Load environment variables from .env file if it exists
 dotenv.load_dotenv()
 
-# Lab Names for Registration Dropdown
 LAB_NAMES = [
     "Anand JEYASEKHARAN",
     "Ashok VENKITARAMAN",
@@ -41,18 +40,8 @@ LAB_NAMES = [
     "GeDaC",
 ]
 
-# Basic Configuration
-BASE_DIR = (
-    Path(__file__).resolve().parent.parent
-)  # This is /app in the Docker container
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Path Configuration ---
-# These paths are relative to BASE_DIR if not overridden by environment variables
-# that specify absolute paths for container volumes.
-
-# Database Path
-# Example: /app/db_data/db.sqlite3
-# (if DB_MOUNT_PATH=/app/db_data and DATABASE_FILENAME=db.sqlite3)
 DB_MOUNT_PATH_STR = os.getenv("DB_MOUNT_PATH")
 DATABASE_FILENAME = os.getenv("DATABASE_FILENAME", "db.sqlite3")
 if DB_MOUNT_PATH_STR:
@@ -60,80 +49,52 @@ if DB_MOUNT_PATH_STR:
 else:
     DATABASE = BASE_DIR / DATABASE_FILENAME
 
-# User Data Path
-# Example: /app/user_data_mount (if USER_DATA_MOUNT_PATH=/app/user_data_mount)
 USER_DATA_MOUNT_PATH_STR = os.getenv("USER_DATA_MOUNT_PATH")
 if USER_DATA_MOUNT_PATH_STR:
     USER_DATA_BASE_DIR = Path(USER_DATA_MOUNT_PATH_STR)
 else:
-    USER_DATA_BASE_DIR = BASE_DIR / "user_data"  # Default to local user_data folder
+    USER_DATA_BASE_DIR = BASE_DIR / "user_data"
 
-# Docker Templates Path (usually part of the application code)
 DOCKER_TEMPLATES_DIR_NAME = os.getenv("DOCKER_TEMPLATES_DIR_NAME", "docker_templates")
 DOCKER_TEMPLATES_DIR = BASE_DIR / DOCKER_TEMPLATES_DIR_NAME
 
-# Static and Templates paths (usually part of the application code)
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_JINJA_DIR = BASE_DIR / "templates"
 
-# RStudio Configuration
-RSTUDIO_MIN_PORT = int(
-    os.getenv("RSTUDIO_MIN_PORT", "9002")
-)  # Changed default from 8787
-RSTUDIO_MAX_PORT = int(
-    os.getenv("RSTUDIO_MAX_PORT", "9050")
-)  # Changed default from 9000
+RSTUDIO_MIN_PORT = int(os.getenv("RSTUDIO_MIN_PORT", "9002"))
+RSTUDIO_MAX_PORT = int(os.getenv("RSTUDIO_MAX_PORT", "9050"))
 RSTUDIO_DEFAULT_MEMORY = os.getenv("RSTUDIO_DEFAULT_MEMORY", "16g")
 RSTUDIO_DEFAULT_CPUS = os.getenv("RSTUDIO_DEFAULT_CPUS", "2.0")
 RSTUDIO_DOCKER_IMAGE = os.getenv("RSTUDIO_DOCKER_IMAGE", "rocker/rstudio:latest")
-RSTUDIO_SESSION_EXPIRY_DAYS = int(os.getenv("RSTUDIO_SESSION_EXPIRY_DAYS", "14"))
+RSTUDIO_SESSION_EXPIRY_DAYS = int(os.getenv("RSTUDIO_SESSION_EXPIRY_DAYS", "7"))
 
-# JupyterLab Configuration
 JUPYTER_DOCKER_IMAGE = os.getenv(
     "JUPYTER_DOCKER_IMAGE", "jupyter/datascience-notebook:latest"
 )
 JUPYTER_MIN_PORT = int(os.getenv("JUPYTER_MIN_PORT", "9051"))
 JUPYTER_MAX_PORT = int(os.getenv("JUPYTER_MAX_PORT", "9100"))
-JUPYTER_DEFAULT_MEMORY = os.getenv(
-    "JUPYTER_DEFAULT_MEMORY", "4g"
-)  # Defaulting to 4g for datascience notebooks
-JUPYTER_DEFAULT_CPUS = os.getenv(
-    "JUPYTER_DEFAULT_CPUS", "1.5"
-)  # Defaulting to 1.5 CPUs
-# Re-use RSTUDIO_SESSION_EXPIRY_DAYS for JupyterLab or define JUPYTER_SESSION_EXPIRY_DAYS if different
-JUPYTER_SESSION_EXPIRY_DAYS = int(
-    os.getenv("JUPYTER_SESSION_EXPIRY_DAYS", str(RSTUDIO_SESSION_EXPIRY_DAYS))
-)
+JUPYTER_DEFAULT_MEMORY = os.getenv("JUPYTER_DEFAULT_MEMORY", "16g")
+JUPYTER_DEFAULT_CPUS = os.getenv("JUPYTER_DEFAULT_CPUS", "2")
+JUPYTER_SESSION_EXPIRY_DAYS = int(os.getenv("JUPYTER_SESSION_EXPIRY_DAYS", "7"))
 
-
-# User/Admin Configuration
 INITIAL_ADMIN_USERNAME = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
-
-# Uvicorn development server configuration
 UVICORN_HOST = os.getenv("UVICORN_HOST", "0.0.0.0")
-UVICORN_PORT = int(os.getenv("UVICORN_PORT", "8001"))  # Changed default from 8000
-
-# New variables
+UVICORN_PORT = int(os.getenv("UVICORN_PORT", "8001"))
 SESSION_DURATION_HOURS = int(os.getenv("SESSION_DURATION_HOURS", "8"))
 RSTUDIO_USER_DATA_BASE_PATH = os.getenv("RSTUDIO_USER_DATA_BASE_PATH", "./user_data")
 RSTUDIO_IMAGE_NAME = os.getenv("RSTUDIO_IMAGE_NAME", "rocker/rstudio:latest")
 RSTUDIO_PORT_RANGE_START = int(os.getenv("RSTUDIO_PORT_RANGE_START", "10000"))
 RSTUDIO_PORT_RANGE_END = int(os.getenv("RSTUDIO_PORT_RANGE_END", "11000"))
 RSTUDIO_BASE_URL_PATH = os.getenv("RSTUDIO_BASE_URL_PATH", "").rstrip("/")
-RSTUDIO_USER_STORAGE_LIMIT = os.getenv(
-    "RSTUDIO_USER_STORAGE_LIMIT", "200G"
-)  # Added default value of 200G
+RSTUDIO_USER_STORAGE_LIMIT = os.getenv("RSTUDIO_USER_STORAGE_LIMIT", "200G")
 
 app = FastAPI()
-
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_JINJA_DIR)
 
-# Initialize logger
 logger = logging.getLogger(__name__)
 
 
-# --- Database Helper ---
 def get_db():
     db = sqlite3.connect(DATABASE)
     db.row_factory = sqlite3.Row
@@ -141,7 +102,6 @@ def get_db():
 
 
 def init_db():
-    # Use DATABASE (Path object) and convert to string for sqlite3.connect
     conn = sqlite3.connect(str(DATABASE))
     cursor = conn.cursor()
     cursor.execute(
@@ -156,8 +116,6 @@ def init_db():
     )
     """
     )
-
-    # Ensure user_instances table exists before checking/altering columns
     cursor.execute(
         """
     CREATE TABLE IF NOT EXISTS user_instances (
@@ -166,18 +124,16 @@ def init_db():
         container_name TEXT NOT NULL,
         container_id TEXT,
         port INTEGER NOT NULL,
-        password TEXT NOT NULL, -- For RStudio: password, for JupyterLab: token
+        password TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME,
-        status TEXT DEFAULT 'requested', -- requested, running, stopped, error
+        status TEXT DEFAULT 'requested',
         stopped_at DATETIME,
-        instance_type TEXT DEFAULT 'rstudio', -- 'rstudio' or 'jupyterlab'
+        instance_type TEXT DEFAULT 'rstudio',
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
     """
     )
-
-    # Add instance_type column to user_instances if missing (for migration)
     cursor.execute("PRAGMA table_info(user_instances)")
     columns = [column[1] for column in cursor.fetchall()]
     if "instance_type" not in columns:
@@ -185,36 +141,23 @@ def init_db():
             "ALTER TABLE user_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
         )
         logger.info("Added 'instance_type' column to 'user_instances' table.")
-
-    # Ensure the admin user exists
     admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
     admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "adminpass")
-
     cursor.execute("SELECT * FROM users WHERE username = ?", (admin_username,))
     if not cursor.fetchone():
         hashed_password = pwd_context.hash(admin_password)
-        # Ensure created_at is populated for the initial admin user
-        # Add lab_name for admin user
         cursor.execute(
             "INSERT INTO users (username, password_hash, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?, ?)",
             (admin_username, hashed_password, True, datetime.utcnow(), "AdminLab"),
         )
         logger.info(f"Admin user {admin_username} created.")
-
     conn.commit()
     conn.close()
     logger.info("Database initialized.")
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Initialize DB on startup
 init_db()
-
-# --- Authentication (Simplified - consider a robust solution for production) ---
-# For simplicity, we'll store a "session" in a cookie.
-# In a real app, use FastAPI's security utilities or a library like
-# Flask-Login/FastAPI-Users.
 
 
 def get_current_user(request: Request):
@@ -227,7 +170,6 @@ def get_current_user(request: Request):
     return user
 
 
-# Dependency for requiring authentication
 def get_current_active_user(current_user: dict = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(
@@ -245,7 +187,6 @@ def get_current_active_user(current_user: dict = Depends(get_current_user)):
 async def root(request: Request, user: dict = Depends(get_current_user)):
     if user:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-    # Serve the new index.html for unauthenticated users
     return templates.TemplateResponse(
         "index.html", {"request": request, "title": "Welcome"}
     )
@@ -598,7 +539,9 @@ async def request_rstudio_instance(
         ),
     )
     db.commit()
-    instance_id = cursor.lastrowid()
+    instance_id = (
+        cursor.lastrowid
+    )  # Remove parentheses; lastrowid is a property, not a method
     db.close()
 
     try:
@@ -791,7 +734,9 @@ async def request_jupyterlab_instance(
         ),
     )
     db.commit()
-    instance_id = cursor.lastrowid
+    instance_id = (
+        cursor.lastrowid
+    )  # Remove parentheses; lastrowid is a property, not a method
     db.close()
 
     try:
