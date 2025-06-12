@@ -10,39 +10,55 @@ endblock %} {% block content %}
     {% endif %}
   </div>
 
-  <div class="card mb-4">
-    <div class="card-body text-center">
-      <h5 class="card-title">Manage Your RStudio Access</h5>
-      <p class="card-text">
-        Request a new RStudio instance or manage your existing ones below.
-      </p>
-      <div class="mb-3">
-        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2 me-2">
-          <i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}
-        </div>
-        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2 me-2">
-          <i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}
-        </div>
-        <div class="d-inline-flex align-items-center justify-content-center mb-3 badge bg-light text-dark rounded-pill px-3 py-2">
-          <i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Request New RStudio Session</h5>
+          <p class="card-text">
+            CPU: {{ cpu_limit }}, Memory: {{ memory_limit }}, Storage:{" "}
+            {{ storage_limit }}
+          </p>
+          <form
+            action="{{ url_for('request_rstudio_instance') }}"
+            method="post"
+            onsubmit="showLoading(this, 'Requesting RStudio Instance...')"
+          >
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-plus-circle-fill me-2"></i>Request RStudio
+              Instance
+            </button>
+          </form>
         </div>
       </div>
-      <form
-        action="{{ url_for('request_rstudio_instance') }}"
-        method="post"
-        onsubmit="showLoading(this, 'Requesting Instance...')"
-      >
-        <button type="submit" class="btn btn-primary btn-lg">
-          <i class="bi bi-plus-circle-fill me-2"></i>Request New RStudio
-          Instance
-        </button>
-      </form>
+    </div>
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Request New JupyterLab Session</h5>
+          <p class="card-text">
+            CPU: {{ jupyter_cpu_limit }}, Memory: {{ jupyter_memory_limit }},
+            Storage: {{ storage_limit }}
+          </p>
+          <form
+            action="{{ url_for('request_jupyterlab_instance') }}"
+            method="post"
+            onsubmit="showLoading(this, 'Requesting JupyterLab Instance...')"
+          >
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-plus-circle-fill me-2"></i>Request JupyterLab
+              Instance
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 
+  <h2 class="mt-5">Your Active Sessions</h2>
   <div class="card">
     <div class="card-header">
-      <h3>Your RStudio Instances</h3>
+      <h3>Your RStudio and JupyterLab Instances</h3>
     </div>
     <div class="card-body">
       {% if instances %}
@@ -56,7 +72,7 @@ endblock %} {% block content %}
               <th>Created At</th>
               <th>Expires At</th>
               <th>Stopped At</th>
-              {# New column header #}
+              <th>Type</th>
               <th class="text-center">Actions</th>
             </tr>
           </thead>
@@ -82,20 +98,35 @@ endblock %} {% block content %}
               <td>
                 {{ instance.stopped_at if instance.stopped_at else 'N/A' }} UTC
               </td>
-              {# Display stopped_at #}
+              <td>
+                <span class="badge bg-info">
+                  {{ instance.instance_type | default('rstudio') | capitalize }}
+                </span>
+              </td>
               <td class="text-center">
                 {% if instance.status == 'running' %}
                 <div class="d-flex justify-content-center align-items-center">
+                  {% if instance.instance_type == 'rstudio' %}
                   <a
                     href="http://{{ request.url.hostname }}:{{ instance.port }}"
                     target="_blank"
                     class="btn btn-success btn-sm me-1"
                     title="Access RStudio"
                   >
-                    <i class="bi bi-box-arrow-up-right"></i> Access
+                    <i class="bi bi-box-arrow-up-right"></i> Access RStudio
                   </a>
+                  {% elif instance.instance_type == 'jupyterlab' %}
+                  <a
+                    href="http://{{ request.url.hostname }}:{{ instance.port }}/lab?token={{ instance.password }}"
+                    target="_blank"
+                    class="btn btn-warning btn-sm me-1"
+                    title="Access JupyterLab"
+                  >
+                    <i class="bi bi-box-arrow-up-right"></i> Access JupyterLab
+                  </a>
+                  {% endif %}
                   <form
-                    action="{{ url_for('stop_rstudio_instance', instance_id=instance.id) }}"
+                    action="{{ url_for('stop_instance_action', instance_id=instance.id) }}"
                     method="post"
                     style="display: inline-block; margin: 0;"
                     onsubmit="showLoading(this, 'Stopping Instance...')"
@@ -118,17 +149,19 @@ endblock %} {% block content %}
                   <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                       <div class="modal-header">
-                        <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">RStudio Login Credentials</h5>
+                        <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">
+                          {% if instance.instance_type == 'rstudio' %}RStudio Login Credentials{% elif instance.instance_type == 'jupyterlab' %}JupyterLab Access Token{% endif %}
+                        </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
                       <div class="modal-body">
+                        {% if instance.instance_type == 'rstudio' %}
                         <div class="alert alert-primary d-flex align-items-center" role="alert">
                           <i class="bi bi-info-circle-fill me-2 fs-4"></i>
                           <div>
                             Use these credentials to log in when prompted by RStudio.
                           </div>
                         </div>
-
                         <div class="mb-3">
                             <label for="rstudio-username-{{ instance.id }}" class="form-label"><strong>Username:</strong></label>
                             <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="{% if '@' in user.username %}{{ user.username.split('@')[0] }}{% else %}{{ user.username }}{% endif %}">
@@ -140,9 +173,7 @@ endblock %} {% block content %}
                                 <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePasswordVisibility('rstudio-password-{{ instance.id }}', this)"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
-
                         <hr class="my-3">
-
                         <h6 class="mb-2"><strong><i class="bi bi-motherboard me-1"></i>Resources:</strong></h6>
                         <ul class="list-group list-group-flush mb-3">
                           <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -161,6 +192,44 @@ endblock %} {% block content %}
                         <p class="text-muted small mt-2 mb-0">
                           <i class="bi bi-info-circle me-1"></i>Note: For email addresses, only the part before '@' is used as the RStudio username.
                         </p>
+                        {% elif instance.instance_type == 'jupyterlab' %}
+                        <div class="alert alert-warning d-flex align-items-center" role="alert">
+                          <i class="bi bi-info-circle-fill me-2 fs-4"></i>
+                          <div>
+                            Use this token to access your JupyterLab session. The link will auto-fill it, but you can also copy and use it manually if needed.
+                          </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="jupyterlab-token-{{ instance.id }}" class="form-label"><strong>Access Token:</strong></label>
+                            <div class="input-group">
+                                <input type="password" readonly class="form-control-plaintext ps-2" id="jupyterlab-token-{{ instance.id }}" value="{{ instance.password }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePasswordVisibility('jupyterlab-token-{{ instance.id }}', this)"><i class="bi bi-eye"></i></button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label"><strong>Access URL:</strong></label>
+                          <input type="text" readonly class="form-control-plaintext ps-2" value="http://{{ request.url.hostname }}:{{ instance.port }}/lab?token={{ instance.password }}">
+                        </div>
+                        <hr class="my-3">
+                        <h6 class="mb-2"><strong><i class="bi bi-motherboard me-1"></i>Resources:</strong></h6>
+                        <ul class="list-group list-group-flush mb-3">
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-memory me-2 text-primary"></i>Memory:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ jupyter_memory_limit }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-cpu-fill me-2 text-primary"></i>CPUs:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ jupyter_cpu_limit }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-hdd-fill me-2 text-primary"></i>Storage:</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ storage_limit }}</span>
+                          </li>
+                        </ul>
+                        <p class="text-muted small mt-2 mb-0">
+                          <i class="bi bi-info-circle me-1"></i>Note: JupyterLab uses a token for authentication. The above link includes the token for direct access.
+                        </p>
+                        {% endif %}
                       </div>
                       <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -190,9 +259,9 @@ endblock %} {% block content %}
       {% else %}
       <div class="text-center py-5">
         <i class="bi bi-info-circle display-4 text-muted mb-3"></i>
-        <p class="lead">You have no RStudio instances.</p>
+        <p class="lead">You have no RStudio or JupyterLab instances.</p>
         <p>
-          Click the "Request New RStudio Instance" button above to get started.
+          Click the "Request New RStudio Instance" or "Request New JupyterLab Instance" button above to get started.
         </p>
       </div>
       {% endif %}

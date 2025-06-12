@@ -1,20 +1,27 @@
-\ {% extends "base.html" %} {% block title %}Welcome to RStudio Portal{%
+\ {% extends "base.html" %} {% block title %}Welcome to RStudio & JupyterLab Portal{%
 endblock %} {% block content %}
 <div class="container mt-5">
   <div class="jumbotron text-center">
-    <img
-      src="{{ url_for('static', path='images/rstudio.png') }}"
-      alt="RStudio Logo"
-      class="img-fluid mb-4"
-      style="max-width: 300px"
-    />
-    <h1 class="display-4">Welcome to the Self-Hosted RStudio Portal</h1>
-    <p class="lead fs-3">Your personal RStudio environment, on demand.</p>
+    <div class="mb-4">
+      <img
+        src="{{ url_for('static', path='images/rstudio.png') }}"
+        alt="RStudio Logo"
+        class="img-fluid me-3"
+        style="max-width: 120px; vertical-align: middle;"
+      />
+      <img
+        src="https://jupyter.org/assets/homepage/main-logo.svg"
+        alt="Jupyter Logo"
+        class="img-fluid"
+        style="max-width: 120px; vertical-align: middle;"
+      />
+    </div>
+    <h1 class="display-4">Welcome to the Self-Hosted RStudio & JupyterLab Portal</h1>
+    <p class="lead fs-3">Your personal RStudio <strong>or</strong> JupyterLab environment, on demand.</p>
     <p class="text-muted small fs-6">Brought to you by GeDaC</p>
     <hr class="my-4" />
-    <p class="fs-5"></p>
-      Access your dedicated RStudio instance, manage your projects, and work
-      seamlessly.
+    <p class="fs-5">
+      Access your dedicated RStudio or JupyterLab instance, manage your projects, and work seamlessly.
     </p>
     <div class="d-flex justify-content-center gap-2 mt-4">
       <a
@@ -38,15 +45,13 @@ endblock %} {% block content %}
     <div class="col-md-4">
       <h2>Zero installation</h2>
       <p>
-        Log in to request and manage your personal RStudio container with a few
-        clicks. Run entirely in your browser. No client software installation required.
+        Log in to request and manage your personal RStudio or JupyterLab container with a few clicks. Run entirely in your browser. No client software installation required.
       </p>
     </div>
     <div class="col-md-4">
       <h2>Secure & Isolated</h2>
       <p>
-        Each user gets their own sandboxed RStudio environment for secure data
-        analysis.
+        Each user gets their own sandboxed RStudio or JupyterLab environment for secure data analysis and reproducible research.
       </p>
     </div>
     <div class="col-md-4">

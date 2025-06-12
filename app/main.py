@@ -91,6 +91,24 @@ RSTUDIO_DEFAULT_CPUS = os.getenv("RSTUDIO_DEFAULT_CPUS", "2.0")
 RSTUDIO_DOCKER_IMAGE = os.getenv("RSTUDIO_DOCKER_IMAGE", "rocker/rstudio:latest")
 RSTUDIO_SESSION_EXPIRY_DAYS = int(os.getenv("RSTUDIO_SESSION_EXPIRY_DAYS", "14"))
 
+# JupyterLab Configuration
+JUPYTER_DOCKER_IMAGE = os.getenv(
+    "JUPYTER_DOCKER_IMAGE", "jupyter/datascience-notebook:latest"
+)
+JUPYTER_MIN_PORT = int(os.getenv("JUPYTER_MIN_PORT", "9051"))
+JUPYTER_MAX_PORT = int(os.getenv("JUPYTER_MAX_PORT", "9100"))
+JUPYTER_DEFAULT_MEMORY = os.getenv(
+    "JUPYTER_DEFAULT_MEMORY", "4g"
+)  # Defaulting to 4g for datascience notebooks
+JUPYTER_DEFAULT_CPUS = os.getenv(
+    "JUPYTER_DEFAULT_CPUS", "1.5"
+)  # Defaulting to 1.5 CPUs
+# Re-use RSTUDIO_SESSION_EXPIRY_DAYS for JupyterLab or define JUPYTER_SESSION_EXPIRY_DAYS if different
+JUPYTER_SESSION_EXPIRY_DAYS = int(
+    os.getenv("JUPYTER_SESSION_EXPIRY_DAYS", str(RSTUDIO_SESSION_EXPIRY_DAYS))
+)
+
+
 # User/Admin Configuration
 INITIAL_ADMIN_USERNAME = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
 
@@ -141,6 +159,16 @@ def init_db():
     )
     """
     )
+    # Add instance_type column to rstudio_instances
+    # Check if instance_type column exists
+    cursor.execute("PRAGMA table_info(rstudio_instances)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "instance_type" not in columns:
+        cursor.execute(
+            "ALTER TABLE rstudio_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
+        )
+        logger.info("Added 'instance_type' column to 'rstudio_instances' table.")
+
     cursor.execute(
         """
     CREATE TABLE IF NOT EXISTS rstudio_instances (
@@ -149,11 +177,12 @@ def init_db():
         container_name TEXT NOT NULL,
         container_id TEXT,
         port INTEGER NOT NULL,
-        password TEXT NOT NULL,
+        password TEXT NOT NULL, -- For RStudio: password, for JupyterLab: token
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME,
         status TEXT DEFAULT 'requested', -- requested, running, stopped, error
         stopped_at DATETIME,
+        instance_type TEXT DEFAULT 'rstudio', -- 'rstudio' or 'jupyterlab'
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
     """
@@ -479,6 +508,8 @@ async def dashboard(
             "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
             "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
             "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Storage limit now has default value
+            "jupyter_memory_limit": JUPYTER_DEFAULT_MEMORY,
+            "jupyter_cpu_limit": JUPYTER_DEFAULT_CPUS,
         },
     )
 
@@ -557,12 +588,19 @@ async def request_rstudio_instance(
     cursor = db.cursor()
     cursor.execute(
         """INSERT INTO rstudio_instances
-           (user_id, container_name, port, password, status)
-           VALUES (?, ?, ?, ?, ?)""",
-        (current_user["id"], container_name, host_port, rstudio_password, "requested"),
+           (user_id, container_name, port, password, status, instance_type)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            current_user["id"],
+            container_name,
+            host_port,
+            rstudio_password,
+            "requested",
+            "rstudio",
+        ),
     )
     db.commit()
-    instance_id = cursor.lastrowid
+    instance_id = cursor.lastrowid()
     db.close()
 
     try:
@@ -612,7 +650,7 @@ async def request_rstudio_instance(
                    WHERE id = ?""",
                 (
                     container_id_short,
-                    f"+{RSTUDIO_SESSION_EXPIRY_DAYS} days",
+                    f"+{RSTUDIO_SESSION_EXPIRY_DAYS} days",  # Ensure this uses the correct expiry for the type
                     instance_id,
                 ),  # Use configured expiry days
             )
@@ -675,8 +713,194 @@ async def request_rstudio_instance(
     )
 
 
-@app.post("/stop_rstudio/{instance_id}")
-async def stop_rstudio_instance(
+@app.post("/request_jupyterlab")
+async def request_jupyterlab_instance(
+    request: Request, current_user: dict = Depends(get_current_active_user)
+):
+    db = get_db()
+    existing_instance_row = db.execute(
+        "SELECT id, status FROM rstudio_instances WHERE user_id = ? AND "
+        "(status = 'running' OR status = 'requested')",  # This check might need refinement if users can have one of each
+        (current_user["id"],),
+    ).fetchone()
+
+    # For now, let's assume a user can have one active instance of any type.
+    # This can be changed later to allow one RStudio AND one JupyterLab.
+    if existing_instance_row:
+        db.close()
+        message = "You already have an active session or one is being prepared."
+        if existing_instance_row["status"] == "requested":
+            # E501: Line shortened
+            message = (
+                "A JupyterLab instance is currently being set up for you. "
+                "Please check the dashboard again shortly."
+            )
+        elif existing_instance_row["status"] == "running":
+            # E501: Line shortened
+            message = (
+                "You already have a running JupyterLab instance. "
+                "Access it from the dashboard."
+            )
+
+        encoded_message = quote(message)  # URL encode the message
+        # E501: Line shortened
+        return RedirectResponse(
+            url=f"/dashboard?message={encoded_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    username_full = current_user["username"]
+    username_part = (
+        username_full.split("@")[0] if "@" in username_full else username_full
+    )
+    container_name = f"jupyterlab-{username_part}-{secrets.token_hex(4)}"
+    jupyter_token = secrets.token_urlsafe(24)  # Generate a secure token
+
+    # Find an available port for JupyterLab
+    used_ports_rows = db.execute(
+        "SELECT port FROM rstudio_instances WHERE status = 'running'"
+    ).fetchall()
+    used_ports = {row["port"] for row in used_ports_rows}
+
+    host_port = JUPYTER_MIN_PORT
+    while host_port in used_ports:
+        host_port += 1
+        if host_port > JUPYTER_MAX_PORT:
+            db.close()
+            error_message = quote(
+                "No available ports for JupyterLab. Please try again later or contact an administrator."
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
+            )
+
+    user_specific_data_dir = USER_DATA_BASE_DIR / username_part
+    os.makedirs(user_specific_data_dir, exist_ok=True)
+
+    cursor = db.cursor()
+    cursor.execute(
+        """INSERT INTO rstudio_instances
+           (user_id, container_name, port, password, status, instance_type)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            current_user["id"],
+            container_name,
+            host_port,
+            jupyter_token,
+            "requested",
+            "jupyterlab",
+        ),
+    )
+    db.commit()
+    instance_id = cursor.lastrowid
+    db.close()
+
+    try:
+        cmd = [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            container_name,
+            "--memory",
+            JUPYTER_DEFAULT_MEMORY,
+            "--cpus",
+            JUPYTER_DEFAULT_CPUS,
+            "-e",
+            f"JUPYTER_TOKEN={jupyter_token}",
+            "-e",
+            "JUPYTER_ENABLE_LAB=yes",
+            # Grant sudo access if needed, or manage permissions carefully
+            # "-e", "GRANT_SUDO=yes",
+            # "-u", "root", # If running as root to chown, then drop privileges. Or use NB_UID/NB_GID.
+            # For simplicity, let jovyan user own the work directory.
+            # Ensure user_specific_data_dir has correct permissions for Docker to write if jovyan is not root.
+            "-v",
+            f"{user_specific_data_dir.resolve()}:/home/jovyan/work",
+            "--rm",
+            "-p",
+            f"{host_port}:8888",  # JupyterLab runs on 8888
+            JUPYTER_DOCKER_IMAGE,
+        ]
+        # Optional: Add user env var if needed by the image or for identification within container logs
+        # cmd.extend(["-e", f"NB_USER={username_part}"])
+
+        logging.info(
+            f"Attempting to run JupyterLab container with command: {' '.join(cmd)}"
+        )
+
+        try:
+            process_result = subprocess.run(
+                cmd, check=True, capture_output=True, text=True
+            )
+            container_id_full = process_result.stdout.strip()
+            container_id_short = container_id_full[:12]
+
+            db_update = get_db()
+            db_update.execute(
+                """UPDATE rstudio_instances
+                   SET container_id = ?, status = 'running',
+                       expires_at = datetime('now', ?)
+                   WHERE id = ?""",
+                (
+                    container_id_short,
+                    f"+{JUPYTER_SESSION_EXPIRY_DAYS} days",
+                    instance_id,
+                ),
+            )
+            db_update.commit()
+            db_update.close()
+
+        except subprocess.CalledProcessError as e:
+            logging.error(
+                f"Failed to start JupyterLab container {container_name}. Error: {e.stderr}"
+            )
+            db_update_error = get_db()
+            try:
+                db_update_error.execute(
+                    "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                    (instance_id,),
+                )
+                db_update_error.commit()
+            finally:
+                db_update_error.close()
+            error_message = quote(
+                f"Failed to start JupyterLab container: {e.stderr.strip()}"
+            )
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_302_FOUND,
+            )
+
+    except Exception as e:
+        db_exc = get_db()
+        db_exc.execute(
+            "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+            (instance_id,),
+        )
+        db_exc.commit()
+        db_exc.close()
+        logging.error(
+            f"Unexpected error in request_jupyterlab_instance for instance {instance_id}: {str(e)}",
+            exc_info=True,
+        )
+        error_message = quote(
+            f"An unexpected error occurred while preparing your JupyterLab instance: {str(e)}"
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}", status_code=status.HTTP_302_FOUND
+        )
+
+    return RedirectResponse(
+        url="/dashboard?message="
+        + quote(f"JupyterLab instance '{container_name}' is being prepared."),
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.post("/stop_instance/{instance_id}")  # Renamed from /stop_rstudio
+async def stop_instance_action(  # Renamed from stop_rstudio_instance
     instance_id: int,
     request: Request,
     current_user: dict = Depends(get_current_active_user),
@@ -902,8 +1126,10 @@ async def stop_rstudio_instance(
         )
 
 
-@app.post("/delete_rstudio/{instance_id}", name="delete_rstudio_instance")
-async def delete_rstudio_instance_action(
+@app.post(
+    "/delete_instance/{instance_id}", name="delete_instance"
+)  # Renamed from /delete_rstudio
+async def delete_instance_action(  # Renamed from delete_rstudio_instance_action
     request: Request,
     instance_id: int,
     current_user: dict = Depends(get_current_active_user),
@@ -992,7 +1218,7 @@ async def admin_dashboard(
         instances_data = db.execute(
             """
             SELECT id, user_id, container_name, container_id, port, password,
-                   created_at, expires_at, status, stopped_at
+                   created_at, expires_at, status, stopped_at, instance_type
             FROM rstudio_instances
             ORDER BY
                 CASE status

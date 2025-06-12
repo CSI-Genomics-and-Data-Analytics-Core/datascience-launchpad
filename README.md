@@ -1,13 +1,14 @@
-# Self-Hosted RStudio Multi-User Platform
+# Self-Hosted RStudio & JupyterLab Multi-User Platform
 
-A private platform for managing individual RStudio instances in a Linux Server.
+A private platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances in a Linux Server.
 
 ## Core Features
 
-- **User Self-Service:** Register, log in, and request personal RStudio containers.
+- **User Self-Service:** Register, log in, and request personal RStudio or JupyterLab containers.
 - **Admin Controls:**
   - Set resource quotas (memory, CPU, disk) per user.
   - Configure automatic session expiration (e.g., after 2 weeks).
+- **Multi-Environment:** Users can launch either RStudio or JupyterLab (Jupyter Data Science Notebook) environments on demand.
 
 ---
 
@@ -17,7 +18,7 @@ A private platform for managing individual RStudio instances in a Linux Server.
 - **Frontend:** Jinja2 Templates
 - **Authentication:** FastAPI-based sessions
 - **Database:** SQLite (default), PostgreSQL (optional)
-- **Containerization:** Docker (using `rocker/rstudio` image)
+- **Containerization:** Docker (using `rocker/rstudio` and `jupyter/datascience-notebook` images)
 - **Session Management:** Cron-based script or Celery
 - **Reverse Proxy:** Nginx or Traefik
 
@@ -26,11 +27,12 @@ A private platform for managing individual RStudio instances in a Linux Server.
 ## User Workflow
 
 1.  **Register/Login:** Users access the web portal.
-2.  **Request Instance:** Users request an RStudio instance from their dashboard.
+2.  **Request Instance:** Users request an RStudio or JupyterLab instance from their dashboard.
 3.  **Provisioning:** The server starts a new Docker container for the user.
-    - Container details (ID, port, credentials, expiration) are stored in the database.
-    - Example Docker command:
+    - Container details (ID, port, credentials/token, expiration) are stored in the database.
+    - Example Docker commands:
       ```bash
+      # RStudio
       docker run -d \
         --name rstudio-user-<username> \
         --memory="<quota>" \
@@ -39,8 +41,18 @@ A private platform for managing individual RStudio instances in a Linux Server.
         -v /srv/rstudio-users/<username>:/home/rstudio \
         -p <host_port>:8787 \
         rocker/rstudio
+      # JupyterLab
+      docker run -d \
+        --name jupyterlab-user-<username> \
+        --memory="<quota>" \
+        --cpus="<quota>" \
+        -e JUPYTER_TOKEN=<generated_token> \
+        -e JUPYTER_ENABLE_LAB=yes \
+        -v /srv/jupyter-users/<username>:/home/jovyan/work \
+        -p <host_port>:8888 \
+        jupyter/datascience-notebook
       ```
-4.  **Access RStudio:** User accesses their instance via a unique URL.
+4.  **Access Environment:** User accesses their instance via a unique URL (RStudio or JupyterLab, with credentials or token).
 
 ---
 
@@ -67,6 +79,7 @@ A private platform for managing individual RStudio instances in a Linux Server.
 | Web Portal         | FastAPI + Jinja2            |
 | Auth & DB          | FastAPI + SQLite/PostgreSQL |
 | RStudio Containers | Docker (`rocker/rstudio`)   |
+| JupyterLab         | Docker (`jupyter/datascience-notebook`) |
 | Resource Limits    | Docker options / XFS quotas |
 | Expiration Control | Cron / Celery + Python      |
 | Reverse Proxy      | Nginx / Traefik             |
@@ -253,3 +266,4 @@ docker run -d --name rstudio-portal-app-container \
 - Automated credential generation and secure storage.
 - Resource usage monitoring (RAM, CPU, disk).
 - Option for users to download their home directory as a ZIP file.
+- **Support for additional environments (e.g., VS Code, R Shiny) in the future.**
