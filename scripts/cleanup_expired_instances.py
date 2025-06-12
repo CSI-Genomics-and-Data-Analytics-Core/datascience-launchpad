@@ -48,14 +48,12 @@ def get_db_connection():
 
 
 def find_expired_instances(db_conn):
-    """Finds RStudio instances that are past their expiration date and are 'running'."""
+    """Finds user instances that are past their expiration date and are 'running'."""
     try:
         cursor = db_conn.cursor()
-        # SQLite stores DATETIME as TEXT, so direct comparison works.
-        # We are looking for instances where expires_at is in the past.
         query = """
             SELECT id, container_name, user_id
-            FROM rstudio_instances
+            FROM user_instances
             WHERE status = 'running' AND expires_at < DATETIME('now')
         """
         cursor.execute(query)
@@ -115,12 +113,10 @@ def stop_and_remove_container(container_name):
 
 
 def update_instance_status_in_db(db_conn, instance_id, new_status="stopped_expired"):
-    """Updates the status of an RStudio instance in the database."""
+    """Updates the status of a user instance in the database."""
     try:
         cursor = db_conn.cursor()
-        query = (
-            "UPDATE rstudio_instances SET status = ?, container_id = NULL WHERE id = ?"
-        )
+        query = "UPDATE user_instances SET status = ?, container_id = NULL WHERE id = ?"
         cursor.execute(query, (new_status, instance_id))
         db_conn.commit()
         logging.info(f"Updated instance ID {instance_id} status to '{new_status}'.")

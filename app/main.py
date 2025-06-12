@@ -159,19 +159,19 @@ def init_db():
     )
     """
     )
-    # Add instance_type column to rstudio_instances
+    # Add instance_type column to user_instances
     # Check if instance_type column exists
-    cursor.execute("PRAGMA table_info(rstudio_instances)")
+    cursor.execute("PRAGMA table_info(user_instances)")
     columns = [column[1] for column in cursor.fetchall()]
     if "instance_type" not in columns:
         cursor.execute(
-            "ALTER TABLE rstudio_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
+            "ALTER TABLE user_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
         )
-        logger.info("Added 'instance_type' column to 'rstudio_instances' table.")
+        logger.info("Added 'instance_type' column to 'user_instances' table.")
 
     cursor.execute(
         """
-    CREATE TABLE IF NOT EXISTS rstudio_instances (
+    CREATE TABLE IF NOT EXISTS user_instances (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         container_name TEXT NOT NULL,
@@ -453,7 +453,7 @@ async def dashboard(
 ):
     db = get_db()
     raw_instances = db.execute(  # Renamed to raw_instances
-        "SELECT * FROM rstudio_instances WHERE user_id = ? ORDER BY created_at DESC",
+        "SELECT * FROM user_instances WHERE user_id = ? ORDER BY created_at DESC",
         (current_user["id"],),
     ).fetchall()
     db.close()
@@ -521,7 +521,7 @@ async def request_rstudio_instance(
     db = get_db()
     # Check if user already has a running or requested instance
     existing_instance_row = db.execute(  # Renamed for clarity and fetching status
-        "SELECT id, status FROM rstudio_instances WHERE user_id = ? AND "
+        "SELECT id, status FROM user_instances WHERE user_id = ? AND "
         "(status = 'running' OR status = 'requested')",
         (current_user["id"],),
     ).fetchone()
@@ -561,7 +561,7 @@ async def request_rstudio_instance(
 
     # Find an available port (very basic, improve for production)
     used_ports_rows = db.execute(
-        "SELECT port FROM rstudio_instances WHERE status = 'running'"
+        "SELECT port FROM user_instances WHERE status = 'running'"
     ).fetchall()
     used_ports = {row["port"] for row in used_ports_rows}
 
@@ -587,7 +587,7 @@ async def request_rstudio_instance(
     # Store request in DB first
     cursor = db.cursor()
     cursor.execute(
-        """INSERT INTO rstudio_instances
+        """INSERT INTO user_instances
            (user_id, container_name, port, password, status, instance_type)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (
@@ -644,7 +644,7 @@ async def request_rstudio_instance(
 
             db_update = get_db()
             db_update.execute(
-                """UPDATE rstudio_instances
+                """UPDATE user_instances
                    SET container_id = ?, status = 'running',
                        expires_at = datetime('now', ?)
                    WHERE id = ?""",
@@ -665,7 +665,7 @@ async def request_rstudio_instance(
             db_update_error = get_db()
             try:
                 db_update_error.execute(
-                    "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                    "UPDATE user_instances SET status = 'error' WHERE id = ?",
                     (instance_id,),
                 )
                 db_update_error.commit()
@@ -690,7 +690,7 @@ async def request_rstudio_instance(
     except Exception as e:
         db_exc = get_db()
         db_exc.execute(
-            "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+            "UPDATE user_instances SET status = 'error' WHERE id = ?",
             (instance_id,),
         )
         db_exc.commit()
@@ -719,7 +719,7 @@ async def request_jupyterlab_instance(
 ):
     db = get_db()
     existing_instance_row = db.execute(
-        "SELECT id, status FROM rstudio_instances WHERE user_id = ? AND "
+        "SELECT id, status FROM user_instances WHERE user_id = ? AND "
         "(status = 'running' OR status = 'requested')",  # This check might need refinement if users can have one of each
         (current_user["id"],),
     ).fetchone()
@@ -758,7 +758,7 @@ async def request_jupyterlab_instance(
 
     # Find an available port for JupyterLab
     used_ports_rows = db.execute(
-        "SELECT port FROM rstudio_instances WHERE status = 'running'"
+        "SELECT port FROM user_instances WHERE status = 'running'"
     ).fetchall()
     used_ports = {row["port"] for row in used_ports_rows}
 
@@ -780,7 +780,7 @@ async def request_jupyterlab_instance(
 
     cursor = db.cursor()
     cursor.execute(
-        """INSERT INTO rstudio_instances
+        """INSERT INTO user_instances
            (user_id, container_name, port, password, status, instance_type)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (
@@ -839,7 +839,7 @@ async def request_jupyterlab_instance(
 
             db_update = get_db()
             db_update.execute(
-                """UPDATE rstudio_instances
+                """UPDATE user_instances
                    SET container_id = ?, status = 'running',
                        expires_at = datetime('now', ?)
                    WHERE id = ?""",
@@ -859,7 +859,7 @@ async def request_jupyterlab_instance(
             db_update_error = get_db()
             try:
                 db_update_error.execute(
-                    "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                    "UPDATE user_instances SET status = 'error' WHERE id = ?",
                     (instance_id,),
                 )
                 db_update_error.commit()
@@ -876,7 +876,7 @@ async def request_jupyterlab_instance(
     except Exception as e:
         db_exc = get_db()
         db_exc.execute(
-            "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+            "UPDATE user_instances SET status = 'error' WHERE id = ?",
             (instance_id,),
         )
         db_exc.commit()
@@ -908,7 +908,7 @@ async def stop_instance_action(  # Renamed from stop_rstudio_instance
     # Allow admin to stop any container, user can only stop their own
     db = get_db()
     instance = db.execute(
-        "SELECT * FROM rstudio_instances WHERE id = ?",
+        "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
     ).fetchone()
 
@@ -1041,7 +1041,7 @@ async def stop_instance_action(  # Renamed from stop_rstudio_instance
                 )
 
             cursor.execute(
-                "UPDATE rstudio_instances SET status = ?, stopped_at = ? WHERE id = ?",
+                "UPDATE user_instances SET status = ?, stopped_at = ? WHERE id = ?",
                 (db_status_to_set, stopped_at_value, instance_id),
             )
             db.commit()
@@ -1088,7 +1088,7 @@ async def stop_instance_action(  # Renamed from stop_rstudio_instance
         if db:
             try:
                 current_status_row = db.execute(
-                    "SELECT status FROM rstudio_instances WHERE id = ?", (instance_id,)
+                    "SELECT status FROM user_instances WHERE id = ?", (instance_id,)
                 ).fetchone()
                 if current_status_row and current_status_row["status"] not in [
                     "stopped",
@@ -1096,7 +1096,7 @@ async def stop_instance_action(  # Renamed from stop_rstudio_instance
                 ]:
                     cursor = db.cursor()
                     cursor.execute(
-                        "UPDATE rstudio_instances SET status = 'error' WHERE id = ?",
+                        "UPDATE user_instances SET status = 'error' WHERE id = ?",
                         (instance_id,),
                     )
                     db.commit()
@@ -1144,7 +1144,7 @@ async def delete_instance_action(  # Renamed from delete_rstudio_instance_action
         )
     db = get_db()
     instance = db.execute(
-        "SELECT * FROM rstudio_instances WHERE id = ?",
+        "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
     ).fetchone()
 
@@ -1159,7 +1159,7 @@ async def delete_instance_action(  # Renamed from delete_rstudio_instance_action
         )
 
     try:
-        db.execute("DELETE FROM rstudio_instances WHERE id = ?", (instance_id,))
+        db.execute("DELETE FROM user_instances WHERE id = ?", (instance_id,))
         db.commit()
         success_message = quote(
             f"Instance record '{instance['container_name']}' deleted successfully."
@@ -1219,7 +1219,7 @@ async def admin_dashboard(
             """
             SELECT id, user_id, container_name, container_id, port, password,
                    created_at, expires_at, status, stopped_at, instance_type
-            FROM rstudio_instances
+            FROM user_instances
             ORDER BY
                 CASE status
                     WHEN 'running' THEN 1

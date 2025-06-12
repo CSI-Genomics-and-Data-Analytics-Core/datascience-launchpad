@@ -17,7 +17,7 @@ if [ ! -f "$DB_FILE" ]; then
 fi
 
 # SQLite query to find expired containers (status is 'running' and expires_at is in the past)
-EXPIRED_CONTAINERS=$(sqlite3 "$DB_FILE" "SELECT container_name, id FROM rstudio_instances WHERE status = 'running' AND expires_at < datetime('now');")
+EXPIRED_CONTAINERS=$(sqlite3 "$DB_FILE" "SELECT container_name, id FROM user_instances WHERE status = 'running' AND expires_at < datetime('now');")
 
 if [ -z "$EXPIRED_CONTAINERS" ]; then
     echo "No expired containers found." >> "$LOG_FILE"
@@ -65,7 +65,7 @@ for line in $EXPIRED_CONTAINERS; do
 
     # Update database
     echo "Updating database for instance ID $INSTANCE_ID, setting status to 'expired_cleaned'." >> "$LOG_FILE"
-    sqlite3 "$DB_FILE" "UPDATE rstudio_instances SET status = 'expired_cleaned' WHERE id = '$INSTANCE_ID';"
+    sqlite3 "$DB_FILE" "UPDATE user_instances SET status = 'expired_cleaned' WHERE id = '$INSTANCE_ID';"
     if [ $? -eq 0 ]; then
         echo "Database updated successfully for instance ID $INSTANCE_ID." >> "$LOG_FILE"
     else
@@ -73,7 +73,7 @@ for line in $EXPIRED_CONTAINERS; do
     fi
 
     # Optional: Archive user data
-    # USER_ID=$(sqlite3 "$DB_FILE" "SELECT user_id FROM rstudio_instances WHERE id = '$INSTANCE_ID';")
+    # USER_ID=$(sqlite3 "$DB_FILE" "SELECT user_id FROM user_instances WHERE id = '$INSTANCE_ID';")
     # USERNAME=$(sqlite3 "$DB_FILE" "SELECT username FROM users WHERE id = '$USER_ID';")
     # USER_DATA_DIR="/opt/rstudio-portal/user_data/$USERNAME"
     # ARCHIVE_DIR="/opt/rstudio-portal/archived_user_data"
