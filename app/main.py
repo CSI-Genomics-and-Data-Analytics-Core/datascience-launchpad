@@ -1,183 +1,56 @@
-from fastapi import FastAPI, Request, Form, HTTPException, status, Depends
+import os  # Keep for os.makedirs, os.getenv (though latter is mostly in config)
+import logging
+import secrets
+import subprocess
+import re  # Keep for regex in registration
+import sqlite3  # Add missing import for sqlite3.Error handling
+
+from fastapi import FastAPI, Request, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
-from datetime import datetime
+from datetime import datetime  # Keep for datetime.utcnow() if still used directly
 from urllib.parse import quote
-from passlib.context import CryptContext
-import os
-import logging
-import dotenv
-import re
-import sqlite3
-import secrets
-import subprocess
 
-# Load environment variables from .env file if it exists
-dotenv.load_dotenv()
-
-LAB_NAMES = [
-    "Anand JEYASEKHARAN",
-    "Ashok VENKITARAMAN",
-    "Boon Cher GOH",
-    "Edward Kai-Hua CHOW",
-    "Dario Campana",
-    "David TAN",
-    "Dennis KAPPEI",
-    "Jason PITT",
-    "Kevin WHITE",
-    "Melissa Jane FULLWOOD",
-    "Patrick TAN",
-    "Polly Leilei CHEN",
-    "Soo Chin LEE",
-    "Takaomi SANDA",
-    "Toshio SUDA",
-    "Wai Leong TAM",
-    "Wee Joo CHNG",
-    "Yang ZHANG",
-    "Yvonne TAY",
-    "GeDaC",
-]
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-DB_MOUNT_PATH_STR = os.getenv("DB_MOUNT_PATH")
-DATABASE_FILENAME = os.getenv("DATABASE_FILENAME", "db.sqlite3")
-if DB_MOUNT_PATH_STR:
-    DATABASE = Path(DB_MOUNT_PATH_STR) / DATABASE_FILENAME
-else:
-    DATABASE = BASE_DIR / DATABASE_FILENAME
-
-USER_DATA_MOUNT_PATH_STR = os.getenv("USER_DATA_MOUNT_PATH")
-if USER_DATA_MOUNT_PATH_STR:
-    USER_DATA_BASE_DIR = Path(USER_DATA_MOUNT_PATH_STR)
-else:
-    USER_DATA_BASE_DIR = BASE_DIR / "user_data"
-
-DOCKER_TEMPLATES_DIR_NAME = os.getenv("DOCKER_TEMPLATES_DIR_NAME", "docker_templates")
-DOCKER_TEMPLATES_DIR = BASE_DIR / DOCKER_TEMPLATES_DIR_NAME
-
-STATIC_DIR = BASE_DIR / "static"
-TEMPLATES_JINJA_DIR = BASE_DIR / "templates"
-
-RSTUDIO_MIN_PORT = int(os.getenv("RSTUDIO_MIN_PORT", "9002"))
-RSTUDIO_MAX_PORT = int(os.getenv("RSTUDIO_MAX_PORT", "9050"))
-RSTUDIO_DEFAULT_MEMORY = os.getenv("RSTUDIO_DEFAULT_MEMORY", "16g")
-RSTUDIO_DEFAULT_CPUS = os.getenv("RSTUDIO_DEFAULT_CPUS", "2.0")
-RSTUDIO_DOCKER_IMAGE = os.getenv("RSTUDIO_DOCKER_IMAGE", "rocker/rstudio:latest")
-RSTUDIO_SESSION_EXPIRY_DAYS = int(os.getenv("RSTUDIO_SESSION_EXPIRY_DAYS", "7"))
-
-JUPYTER_DOCKER_IMAGE = os.getenv(
-    "JUPYTER_DOCKER_IMAGE", "jupyter/datascience-notebook:latest"
+# Import configurations, database, and auth functions from new modules
+from app.core.config import (
+    LAB_NAMES,
+    USER_DATA_BASE_DIR,
+    STATIC_DIR,
+    TEMPLATES_JINJA_DIR,
+    RSTUDIO_MIN_PORT,
+    RSTUDIO_MAX_PORT,
+    RSTUDIO_DEFAULT_MEMORY,
+    RSTUDIO_DEFAULT_CPUS,
+    RSTUDIO_DOCKER_IMAGE,
+    RSTUDIO_SESSION_EXPIRY_DAYS,
+    JUPYTER_DOCKER_IMAGE,
+    JUPYTER_MIN_PORT,
+    JUPYTER_MAX_PORT,
+    JUPYTER_DEFAULT_MEMORY,
+    JUPYTER_DEFAULT_CPUS,
+    JUPYTER_SESSION_EXPIRY_DAYS,
+    INITIAL_ADMIN_USERNAME,  # Used in registration
+    RSTUDIO_USER_STORAGE_LIMIT,
 )
-JUPYTER_MIN_PORT = int(os.getenv("JUPYTER_MIN_PORT", "9051"))
-JUPYTER_MAX_PORT = int(os.getenv("JUPYTER_MAX_PORT", "9100"))
-JUPYTER_DEFAULT_MEMORY = os.getenv("JUPYTER_DEFAULT_MEMORY", "16g")
-JUPYTER_DEFAULT_CPUS = os.getenv("JUPYTER_DEFAULT_CPUS", "2")
-JUPYTER_SESSION_EXPIRY_DAYS = int(os.getenv("JUPYTER_SESSION_EXPIRY_DAYS", "7"))
+from app.db.database import get_db, init_db
+from app.auth.security import (
+    pwd_context,  # For password verification and hashing
+    get_current_user,
+    get_current_active_user,
+)
 
-INITIAL_ADMIN_USERNAME = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
-UVICORN_HOST = os.getenv("UVICORN_HOST", "0.0.0.0")
-UVICORN_PORT = int(os.getenv("UVICORN_PORT", "8001"))
-SESSION_DURATION_HOURS = int(os.getenv("SESSION_DURATION_HOURS", "8"))
-RSTUDIO_USER_DATA_BASE_PATH = os.getenv("RSTUDIO_USER_DATA_BASE_PATH", "./user_data")
-RSTUDIO_IMAGE_NAME = os.getenv("RSTUDIO_IMAGE_NAME", "rocker/rstudio:latest")
-RSTUDIO_PORT_RANGE_START = int(os.getenv("RSTUDIO_PORT_RANGE_START", "10000"))
-RSTUDIO_PORT_RANGE_END = int(os.getenv("RSTUDIO_PORT_RANGE_END", "11000"))
-RSTUDIO_BASE_URL_PATH = os.getenv("RSTUDIO_BASE_URL_PATH", "").rstrip("/")
-RSTUDIO_USER_STORAGE_LIMIT = os.getenv("RSTUDIO_USER_STORAGE_LIMIT", "200G")
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-templates = Jinja2Templates(directory=TEMPLATES_JINJA_DIR)
+# Mount static files using STATIC_DIR from config
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Setup templates using TEMPLATES_JINJA_DIR from config
+templates = Jinja2Templates(directory=str(TEMPLATES_JINJA_DIR))
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # Keep logger setup
 
-
-def get_db():
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
-    return db
-
-
-def init_db():
-    conn = sqlite3.connect(str(DATABASE))
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        is_admin BOOLEAN DEFAULT FALSE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        lab_name TEXT NOT NULL
-    )
-    """
-    )
-    cursor.execute(
-        """
-    CREATE TABLE IF NOT EXISTS user_instances (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        container_name TEXT NOT NULL,
-        container_id TEXT,
-        port INTEGER NOT NULL,
-        password TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        expires_at DATETIME,
-        status TEXT DEFAULT 'requested',
-        stopped_at DATETIME,
-        instance_type TEXT DEFAULT 'rstudio',
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    """
-    )
-    cursor.execute("PRAGMA table_info(user_instances)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if "instance_type" not in columns:
-        cursor.execute(
-            "ALTER TABLE user_instances ADD COLUMN instance_type TEXT DEFAULT 'rstudio'"
-        )
-        logger.info("Added 'instance_type' column to 'user_instances' table.")
-    admin_username = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
-    admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "adminpass")
-    cursor.execute("SELECT * FROM users WHERE username = ?", (admin_username,))
-    if not cursor.fetchone():
-        hashed_password = pwd_context.hash(admin_password)
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?, ?)",
-            (admin_username, hashed_password, True, datetime.utcnow(), "AdminLab"),
-        )
-        logger.info(f"Admin user {admin_username} created.")
-    conn.commit()
-    conn.close()
-    logger.info("Database initialized.")
-
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Call init_db from the imported module at startup
 init_db()
-
-
-def get_current_user(request: Request):
-    username = request.cookies.get("username")
-    if not username:
-        return None
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-    db.close()
-    return user
-
-
-def get_current_active_user(current_user: dict = Depends(get_current_user)):
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_302_FOUND,
-            detail="Not authenticated",
-            headers={"Location": "/login"},
-        )
-    return current_user
 
 
 # --- Routes ---
@@ -203,11 +76,13 @@ async def login_page(request: Request):
 async def login_action(
     request: Request, username: str = Form(...), password: str = Form(...)
 ):
-    db = get_db()
+    db = get_db()  # Uses imported get_db
     user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     db.close()
 
-    if user and pwd_context.verify(password, user["password_hash"]):
+    if user and pwd_context.verify(
+        password, user["password_hash"]
+    ):  # Uses imported pwd_context
         response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
         response.set_cookie(
             key="username", value=username, httponly=True, samesite="Lax", secure=False
@@ -226,13 +101,13 @@ async def register_page(request: Request):
         {
             "request": request,
             "title": "Register",
-            "initial_admin_username": INITIAL_ADMIN_USERNAME,
-            "lab_names": LAB_NAMES,  # Pass lab names to the template
+            "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
+            "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
         },
     )
 
 
-@app.post("/register")  # Changed from /register_action to match existing route
+@app.post("/register")
 async def register_action(
     request: Request,
     username: str = Form(...),
@@ -240,10 +115,11 @@ async def register_action(
     lab_name_select: str = Form(...),
     lab_name_other: str = Form(""),
 ):
-    username = username.strip()  # Remove leading/trailing whitespace
+    username = username.strip()
 
-    # Validate username format if not the initial admin
-    if username.lower() != INITIAL_ADMIN_USERNAME.lower():
+    if (
+        username.lower() != INITIAL_ADMIN_USERNAME.lower()
+    ):  # Uses imported INITIAL_ADMIN_USERNAME
         allowed_domains = [
             r"^[a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg$",
             r"^[a-zA-Z0-9._%+-]+@u\.nus\.edu$",
@@ -263,8 +139,8 @@ async def register_action(
                     "request": request,
                     "error": "Username must be a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg).",
                     "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
-                    "lab_names": LAB_NAMES,  # Pass lab_names back
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
+                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
                     "username_value": username,  # Pass entered username back
                     "password_value": password,  # Pass entered password back
                     "lab_name_select_value": lab_name_select,  # Pass selected lab back
@@ -283,29 +159,29 @@ async def register_action(
                     "request": request,
                     "error": "Please specify your lab name when 'Other' is selected.",
                     "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
-                    "lab_names": LAB_NAMES,
-                    "username_value": username,
-                    "password_value": password,
-                    "lab_name_select_value": lab_name_select,
-                    "lab_name_other_value": lab_name_other,
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
+                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
+                    "username_value": username,  # Pass entered username back
+                    "password_value": password,  # Pass entered password back
+                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
+                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
                 },
             )
         final_lab_name = lab_name_other_stripped
     else:
-        if lab_name_select not in LAB_NAMES:
+        if lab_name_select not in LAB_NAMES:  # Uses imported LAB_NAMES
             return templates.TemplateResponse(
                 "register.html",
                 {
                     "request": request,
                     "error": "Invalid lab selection.",
                     "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
-                    "lab_names": LAB_NAMES,
-                    "username_value": username,
-                    "password_value": password,
-                    "lab_name_select_value": lab_name_select,
-                    "lab_name_other_value": lab_name_other,
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
+                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
+                    "username_value": username,  # Pass entered username back
+                    "password_value": password,  # Pass entered password back
+                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
+                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
                 },
             )
         final_lab_name = lab_name_select
@@ -317,19 +193,18 @@ async def register_action(
                 "request": request,
                 "error": "Lab name is mandatory.",
                 "title": "Register",
-                "initial_admin_username": INITIAL_ADMIN_USERNAME,
-                "lab_names": LAB_NAMES,
-                "username_value": username,
-                "password_value": password,
-                "lab_name_select_value": lab_name_select,
-                "lab_name_other_value": lab_name_other,
+                "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
+                "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
+                "username_value": username,  # Pass entered username back
+                "password_value": password,  # Pass entered password back
+                "lab_name_select_value": lab_name_select,  # Pass selected lab back
+                "lab_name_other_value": lab_name_other,  # Pass other lab name back
             },
         )
 
-    # Use DATABASE (Path object) and convert to string for sqlite3.connect
-    db = sqlite3.connect(str(DATABASE))
+    db = get_db()  # Uses imported get_db
     try:
-        cursor = db.cursor()  # Create cursor from db connection
+        cursor = db.cursor()
         cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
         if cursor.fetchone():
             db.close()
@@ -339,23 +214,25 @@ async def register_action(
                 {
                     "request": request,
                     "error": error,
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,
+                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
                     "title": "Register",
-                    "lab_names": LAB_NAMES,
-                    "username_value": username,
-                    "password_value": password,
-                    "lab_name_select_value": lab_name_select,
-                    "lab_name_other_value": lab_name_other,
+                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
+                    "username_value": username,  # Pass entered username back
+                    "password_value": password,  # Pass entered password back
+                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
+                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
                 },
             )
 
-        hashed_password = pwd_context.hash(password)
+        hashed_password = pwd_context.hash(password)  # Uses imported pwd_context
         # Ensure created_at is populated for new users (though DB default should handle it)
         # Determine if the user should be admin
         is_admin_val = 0
         cursor.execute("SELECT COUNT(*) FROM users")
         user_count = cursor.fetchone()[0]
-        if user_count == 0 or username.lower() == INITIAL_ADMIN_USERNAME.lower():
+        if (
+            user_count == 0 or username.lower() == INITIAL_ADMIN_USERNAME.lower()
+        ):  # Uses imported INITIAL_ADMIN_USERNAME
             is_admin_val = 1
 
         cursor.execute(
@@ -389,8 +266,8 @@ async def register_action(
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(
     request: Request, current_user: dict = Depends(get_current_active_user)
-):
-    db = get_db()
+):  # Uses imported get_current_active_user
+    db = get_db()  # Uses imported get_db
     raw_instances = db.execute(  # Renamed to raw_instances
         "SELECT * FROM user_instances WHERE user_id = ? ORDER BY created_at DESC",
         (current_user["id"],),
@@ -444,11 +321,11 @@ async def dashboard(
             "instances": processed_instances,  # Pass processed instances
             "base_url": base_url,
             "title": "Dashboard",
-            "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Add memory limit
-            "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Add CPU limit
-            "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Storage limit now has default value
-            "jupyter_memory_limit": JUPYTER_DEFAULT_MEMORY,
-            "jupyter_cpu_limit": JUPYTER_DEFAULT_CPUS,
+            "memory_limit": RSTUDIO_DEFAULT_MEMORY,  # Uses imported RSTUDIO_DEFAULT_MEMORY
+            "cpu_limit": RSTUDIO_DEFAULT_CPUS,  # Uses imported RSTUDIO_DEFAULT_CPUS
+            "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Uses imported RSTUDIO_USER_STORAGE_LIMIT
+            "jupyter_memory_limit": JUPYTER_DEFAULT_MEMORY,  # Uses imported JUPYTER_DEFAULT_MEMORY
+            "jupyter_cpu_limit": JUPYTER_DEFAULT_CPUS,  # Uses imported JUPYTER_DEFAULT_CPUS
         },
     )
 
@@ -456,8 +333,8 @@ async def dashboard(
 @app.post("/request_rstudio")
 async def request_rstudio_instance(
     request: Request, current_user: dict = Depends(get_current_active_user)
-):
-    db = get_db()
+):  # Uses imported get_current_active_user
+    db = get_db()  # Uses imported get_db
     # Check if user already has a running or requested instance
     existing_instance_row = db.execute(  # Renamed for clarity and fetching status
         "SELECT id, status FROM user_instances WHERE user_id = ? AND "
@@ -504,10 +381,10 @@ async def request_rstudio_instance(
     ).fetchall()
     used_ports = {row["port"] for row in used_ports_rows}
 
-    host_port = RSTUDIO_MIN_PORT  # Use configured min port
+    host_port = RSTUDIO_MIN_PORT  # Use imported RSTUDIO_MIN_PORT
     while host_port in used_ports:
         host_port += 1
-        if host_port > RSTUDIO_MAX_PORT:  # Use configured max port
+        if host_port > RSTUDIO_MAX_PORT:  # Use imported RSTUDIO_MAX_PORT
             db.close()
             # OLD: raise HTTPException(status_code=500, detail="No available ports for RStudio.")
             # NEW: Redirect with error
@@ -520,8 +397,10 @@ async def request_rstudio_instance(
             )
 
     # Use username_part for the user-specific data directory path
-    user_specific_data_dir = USER_DATA_BASE_DIR / username_part
-    os.makedirs(user_specific_data_dir, exist_ok=True)
+    user_specific_data_dir = (
+        USER_DATA_BASE_DIR / username_part
+    )  # Uses imported USER_DATA_BASE_DIR
+    os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
 
     # Store request in DB first
     cursor = db.cursor()
@@ -555,9 +434,9 @@ async def request_rstudio_instance(
             "--name",
             container_name,
             "--memory",
-            RSTUDIO_DEFAULT_MEMORY,  # Use configured memory
+            RSTUDIO_DEFAULT_MEMORY,  # Use imported RSTUDIO_DEFAULT_MEMORY
             "--cpus",
-            RSTUDIO_DEFAULT_CPUS,  # Use configured CPUs
+            RSTUDIO_DEFAULT_CPUS,  # Use imported RSTUDIO_DEFAULT_CPUS
             "-e",
             f"PASSWORD={rstudio_password}",
             "-v",
@@ -568,7 +447,7 @@ async def request_rstudio_instance(
             "-e",
             f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
         ]
-        cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use configured Docker image
+        cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use imported RSTUDIO_DOCKER_IMAGE
 
         logging.info(
             f"Attempting to run RStudio container with command: {' '.join(cmd)}"
@@ -583,7 +462,7 @@ async def request_rstudio_instance(
                 :12
             ]  # Docker typically shows short IDs
 
-            db_update = get_db()
+            db_update = get_db()  # Uses imported get_db
             db_update.execute(
                 """UPDATE user_instances
                    SET container_id = ?, status = 'running',
@@ -591,9 +470,9 @@ async def request_rstudio_instance(
                    WHERE id = ?""",
                 (
                     container_id_short,
-                    f"+{RSTUDIO_SESSION_EXPIRY_DAYS} days",  # Ensure this uses the correct expiry for the type
+                    f"+{RSTUDIO_SESSION_EXPIRY_DAYS} days",  # Use imported RSTUDIO_SESSION_EXPIRY_DAYS
                     instance_id,
-                ),  # Use configured expiry days
+                ),
             )
             db_update.commit()
             db_update.close()
@@ -657,8 +536,8 @@ async def request_rstudio_instance(
 @app.post("/request_jupyterlab")
 async def request_jupyterlab_instance(
     request: Request, current_user: dict = Depends(get_current_active_user)
-):
-    db = get_db()
+):  # Uses imported get_current_active_user
+    db = get_db()  # Uses imported get_db
     existing_instance_row = db.execute(
         "SELECT id, status FROM user_instances WHERE user_id = ? AND "
         "(status = 'running' OR status = 'requested')",  # This check might need refinement if users can have one of each
@@ -703,10 +582,10 @@ async def request_jupyterlab_instance(
     ).fetchall()
     used_ports = {row["port"] for row in used_ports_rows}
 
-    host_port = JUPYTER_MIN_PORT
+    host_port = JUPYTER_MIN_PORT  # Use imported JUPYTER_MIN_PORT
     while host_port in used_ports:
         host_port += 1
-        if host_port > JUPYTER_MAX_PORT:
+        if host_port > JUPYTER_MAX_PORT:  # Use imported JUPYTER_MAX_PORT
             db.close()
             error_message = quote(
                 "No available ports for JupyterLab. Please try again later or contact an administrator."
@@ -716,9 +595,13 @@ async def request_jupyterlab_instance(
                 status_code=status.HTTP_302_FOUND,
             )
 
-    user_specific_data_dir = USER_DATA_BASE_DIR / username_part
-    os.makedirs(user_specific_data_dir, exist_ok=True)
+    # Use username_part for the user-specific data directory path
+    user_specific_data_dir = (
+        USER_DATA_BASE_DIR / username_part
+    )  # Uses imported USER_DATA_BASE_DIR
+    os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
 
+    # Store request in DB first
     cursor = db.cursor()
     cursor.execute(
         """INSERT INTO user_instances
@@ -747,11 +630,11 @@ async def request_jupyterlab_instance(
             "--name",
             container_name,
             "--memory",
-            JUPYTER_DEFAULT_MEMORY,
+            JUPYTER_DEFAULT_MEMORY,  # Use imported JUPYTER_DEFAULT_MEMORY
             "--cpus",
-            JUPYTER_DEFAULT_CPUS,
+            JUPYTER_DEFAULT_CPUS,  # Use imported JUPYTER_DEFAULT_CPUS
             "-e",
-            f"JUPYTER_TOKEN={jupyter_token}",
+            f"JUPYTER_TOKEN={jupyter_token}",  # Pass the token
             "-e",
             "JUPYTER_ENABLE_LAB=yes",
             # Grant sudo access if needed, or manage permissions carefully
@@ -763,16 +646,35 @@ async def request_jupyterlab_instance(
             f"{user_specific_data_dir.resolve()}:/home/jovyan/work",
             "--rm",
             "-p",
-            f"{host_port}:8888",  # JupyterLab runs on 8888
-            JUPYTER_DOCKER_IMAGE,
+            f"{host_port}:8888",  # JupyterLab typically runs on 8888
+            "-e",
+            f"JUPYTER_TOKEN={jupyter_token}",  # Pass the token
+            # For JupyterLab, the user inside the container is often 'jovyan' or configurable.
+            # The UID/GID mapping is crucial. The datascience-notebook often uses UID 1000 (jovyan).
+            # We need to ensure the mounted directory has correct permissions for this user.
+            # Example: "-u", "1000:100", # Run as jovyan user (UID 1000) and users group (GID 100)
+            # This might need to be configurable or handled by the Docker image itself.
+            # For now, let's assume the image handles user permissions or the user_specific_data_dir is world-writable enough.
+            # The -e NB_USER=$username_part and -e NB_UID=$(id -u) might be useful if the image supports it.
+            # The jupyter/docker-stacks images often create a user 'jovyan' with UID 1000.
+            # Let's add a CHOWN_HOME='yes' and CHOWN_EXTRA_OPTS='-R' which some images use to fix permissions.
+            # Also, NB_PREFIX might be useful if running behind a proxy, but not essential for direct access.
+            "-e",
+            "CHOWN_HOME=yes",
+            "-e",
+            "CHOWN_EXTRA_OPTS=-R",
+            # Grant sudo access to the jovyan user if needed for package installs, though generally better to build custom image
+            # "-e", "GRANT_SUDO=yes", # Uncomment if sudo access is needed inside container
         ]
-        # Optional: Add user env var if needed by the image or for identification within container logs
-        # cmd.extend(["-e", f"NB_USER={username_part}"])
+        cmd.append(JUPYTER_DOCKER_IMAGE)  # Use imported JUPYTER_DOCKER_IMAGE
+        # Add --user $(id -u):$(id -g) if running on Linux and want to map to host user,
+        # but this can be problematic with pre-built images expecting a specific internal user.
+        # For jupyter/datascience-notebook, it's usually better to let it run as 'jovyan'
+        # and ensure the volume permissions are correct on the host.
 
         logging.info(
             f"Attempting to run JupyterLab container with command: {' '.join(cmd)}"
         )
-
         try:
             process_result = subprocess.run(
                 cmd, check=True, capture_output=True, text=True
@@ -780,7 +682,7 @@ async def request_jupyterlab_instance(
             container_id_full = process_result.stdout.strip()
             container_id_short = container_id_full[:12]
 
-            db_update = get_db()
+            db_update = get_db()  # Uses imported get_db
             db_update.execute(
                 """UPDATE user_instances
                    SET container_id = ?, status = 'running',
@@ -788,7 +690,7 @@ async def request_jupyterlab_instance(
                    WHERE id = ?""",
                 (
                     container_id_short,
-                    f"+{JUPYTER_SESSION_EXPIRY_DAYS} days",
+                    f"+{JUPYTER_SESSION_EXPIRY_DAYS} days",  # Use imported JUPYTER_SESSION_EXPIRY_DAYS
                     instance_id,
                 ),
             )
@@ -842,14 +744,15 @@ async def request_jupyterlab_instance(
     )
 
 
-@app.post("/stop_instance/{instance_id}")  # Renamed from /stop_rstudio
-async def stop_instance_action(  # Renamed from stop_rstudio_instance
+@app.post("/stop_instance/{instance_id}")
+async def stop_instance_action(
     instance_id: int,
     request: Request,
-    current_user: dict = Depends(get_current_active_user),
+    current_user: dict = Depends(
+        get_current_active_user
+    ),  # Uses imported get_current_active_user
 ):
-    # Allow admin to stop any container, user can only stop their own
-    db = get_db()
+    db = get_db()  # Uses imported get_db
     instance = db.execute(
         "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
@@ -1072,20 +975,14 @@ async def stop_instance_action(  # Renamed from stop_rstudio_instance
 @app.post(
     "/delete_instance/{instance_id}", name="delete_instance"
 )  # Renamed from /delete_rstudio
-async def delete_instance_action(  # Renamed from delete_rstudio_instance_action
-    request: Request,
+async def delete_instance(
     instance_id: int,
-    current_user: dict = Depends(get_current_active_user),
+    request: Request,
+    current_user: dict = Depends(
+        get_current_active_user
+    ),  # Uses imported get_current_active_user
 ):
-    # Only allow admin to delete records
-    # Corrected: Changed current_user.get("is_admin") to current_user["is_admin"]
-    if not current_user["is_admin"]:
-        error_message = quote("Only admin users can delete instance records.")
-        return RedirectResponse(
-            url=f"/dashboard?error={error_message}",
-            status_code=status.HTTP_302_FOUND,
-        )
-    db = get_db()
+    db = get_db()  # Uses imported get_db
     instance = db.execute(
         "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
@@ -1134,7 +1031,9 @@ async def logout(request: Request):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(
     request: Request,
-    current_user: dict = Depends(get_current_active_user),
+    current_user: dict = Depends(
+        get_current_active_user
+    ),  # Uses imported get_current_active_user
 ):
     """
     Admin dashboard that displays all users and their RStudio instances.
@@ -1294,13 +1193,14 @@ async def admin_dashboard(
         )
 
 
+# Add uvicorn startup if this file is run directly (for development)
 if __name__ == "__main__":
     import uvicorn
+    from app.core.config import UVICORN_HOST, UVICORN_PORT  # Import here for __main__
 
-    # Make sure USER_DATA_BASE_DIR exists
-    os.makedirs(USER_DATA_BASE_DIR, exist_ok=True)
-    # For development, run with:
-    # uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-    uvicorn.run(
-        app, host=UVICORN_HOST, port=UVICORN_PORT
-    )  # Use configured host and port
+    # Configure logging for Uvicorn and application
+    logging.basicConfig(level=logging.INFO)  # Basic config for root logger
+    # You might want more sophisticated logging config, e.g., using logging.config.dictConfig
+
+    logger.info(f"Starting Uvicorn server on {UVICORN_HOST}:{UVICORN_PORT}")
+    uvicorn.run(app, host=UVICORN_HOST, port=UVICORN_PORT)

@@ -1,269 +1,309 @@
-# Self-Hosted RStudio & JupyterLab Multi-User Platform
+# GeDaC Data Science Portal: Self-Hosted RStudio & JupyterLab
 
-A private platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances in a Linux Server.
+A private, multi-user platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances on a Linux Server.
+
+![Architecture Diagram](architecture.png)
+
+The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, and a reverse proxy to route traffic to the appropriate instances.
 
 ## Core Features
 
-- **User Self-Service:** Register, log in, and request personal RStudio or JupyterLab containers.
+- **User Self-Service:** Register, log in, and request personal RStudio or JupyterLab containerized environments.
 - **Admin Controls:**
-  - Set resource quotas (memory, CPU, disk) per user.
-  - Configure automatic session expiration (e.g., after 2 weeks).
-- **Multi-Environment:** Users can launch either RStudio or JupyterLab (Jupyter Data Science Notebook) environments on demand.
+  - Manage users and instances.
+  - Configure resource quotas (memory, CPU) per instance.
+  - Set automatic session expiration.
+- **Multi-Environment Support:** Launch either RStudio or JupyterLab instances on demand.
+- **Persistent Storage:** User data is saved in dedicated volumes.
 
 ---
 
 ## Technology Stack
 
 - **Backend:** Python (FastAPI)
-- **Frontend:** Jinja2 Templates
-- **Authentication:** FastAPI-based sessions
-- **Database:** SQLite (default), PostgreSQL (optional)
-- **Containerization:** Docker (using `rocker/rstudio` and `jupyter/datascience-notebook` images)
-- **Session Management:** Cron-based script or Celery
-- **Reverse Proxy:** Nginx or Traefik
-
+- **Frontend:** Jinja2 Templates with HTML & CSS
+- **Authentication:** Secure session-based authentication.
+- **Database:** SQLite (default).
+- **Containerization:** Docker (utilizing `rocker/rstudio` and `jupyter/datascience-notebook` base images).
+- **Instance Lifecycle Management:** Python scripts (e.g., for cleanup of expired instances).
+- **Reverse Proxy (Recommended):** Nginx or Traefik for SSL termination and routing.
 ---
 
 ## User Workflow
 
-1.  **Register/Login:** Users access the web portal.
-2.  **Request Instance:** Users request an RStudio or JupyterLab instance from their dashboard.
-3.  **Provisioning:** The server starts a new Docker container for the user.
-    - Container details (ID, port, credentials/token, expiration) are stored in the database.
-    - Example Docker commands:
+1.  **Access Portal:** Users navigate to the web portal.
+2.  **Register/Login:** New users register; existing users log in.
+3.  **Request Environment:** From their dashboard, users can request an RStudio or a JupyterLab instance.
+4.  **Provisioning:**
+    - The backend initiates the creation of a new Docker container for the user.
+    - Container details (ID, assigned port, access credentials/token, expiration date) are recorded in the database.
+    - Example Docker launch commands (managed by the application):
       ```bash
-      # RStudio
+      # RStudio Instance
       docker run -d \
-        --name rstudio-user-<username> \
-        --memory="<quota>" \
-        --cpus="<quota>" \
+        --name rstudio-<user_identifier>-<unique_id> \
+        --memory="<memory_limit>" \
+        --cpus="<cpu_limit>" \
         -e PASSWORD=<generated_password> \
-        -v /srv/rstudio-users/<username>:/home/rstudio \
-        -p <host_port>:8787 \
-        rocker/rstudio
-      # JupyterLab
+        -v /path/to/user_data/<user_identifier>:/home/rstudio \
+        -p <assigned_host_port>:8787 \
+        <RSTUDIO_DOCKER_IMAGE>
+
+      # JupyterLab Instance
       docker run -d \
-        --name jupyterlab-user-<username> \
-        --memory="<quota>" \
-        --cpus="<quota>" \
+        --name jupyterlab-<user_identifier>-<unique_id> \
+        --memory="<memory_limit>" \
+        --cpus="<cpu_limit>" \
         -e JUPYTER_TOKEN=<generated_token> \
         -e JUPYTER_ENABLE_LAB=yes \
-        -v /srv/jupyter-users/<username>:/home/jovyan/work \
-        -p <host_port>:8888 \
-        jupyter/datascience-notebook
+        -v /path/to/user_data/<user_identifier>:/home/jovyan/work \
+        -p <assigned_host_port>:8888 \
+        <JUPYTER_DOCKER_IMAGE>
       ```
-4.  **Access Environment:** User accesses their instance via a unique URL (RStudio or JupyterLab, with credentials or token).
+5.  **Access Instance:** Users receive a unique link and credentials/token to access their running RStudio or JupyterLab environment.
 
 ---
 
-## Directory Structure
+## Project Structure
 
 ```
-/opt/rstudio-portal/
-├── app/                # FastAPI application code
-├── templates/          # HTML templates
-├── static/             # CSS, JavaScript files
-├── docker_templates/   # Scripts for Docker container management
-├── user_data/          # Persistent user-specific data
-│   ├── <username1>/
-│   └── <username2>/
-└── db.sqlite3          # Database for user and instance metadata
+/rstudio-portal/
+├── app/                    # FastAPI application source code
+│   ├── __init__.py
+│   ├── main.py             # Main application logic, request handling
+│   ├── core/               # Core components (e.g., configuration)
+│   │   └── config.py
+│   ├── db/                 # Database interaction logic
+│   │   └── database.py
+│   ├── auth/               # Authentication logic
+│   │   └── security.py
+│   └── routers/            # (Future) API route definitions
+├── templates/              # Jinja2 HTML templates for the frontend
+├── static/                 # Static assets (CSS, JavaScript, images)
+├── docker_templates/       # Helper scripts for Docker (e.g., cleanup)
+├── user_data/              # Root directory for persistent user-specific data volumes
+│   ├── <username_part1>/
+│   └── <username_part2>/
+├── .env.example            # Example environment variable configuration
+├── Dockerfile              # For building the application's Docker image
+├── requirements.txt        # Python dependencies
+├── nginx.conf              # Example Nginx configuration
+└── README.md               # This file
 ```
+The `db.sqlite3` database file will be created (by default in the project root, or as specified by `DB_MOUNT_PATH` and `DATABASE_FILENAME` environment variables).
 
 ---
-
-## Deployment Overview
-
-| Component          | Technology                  |
-| ------------------ | --------------------------- |
-| Web Portal         | FastAPI + Jinja2            |
-| Auth & DB          | FastAPI + SQLite/PostgreSQL |
-| RStudio Containers | Docker (`rocker/rstudio`)   |
-| JupyterLab         | Docker (`jupyter/datascience-notebook`) |
-| Resource Limits    | Docker options / XFS quotas |
-| Expiration Control | Cron / Celery + Python      |
-| Reverse Proxy      | Nginx / Traefik             |
-
----
-
 ## Deployment on a Linux (Ubuntu) Server
 
-This guide outlines the steps to deploy the RStudio Portal on a Linux server, specifically targeting Ubuntu. Ensure you have `sudo` privileges for these operations.
+This guide outlines deploying the GeDaC Data Science Portal on a Linux server (Ubuntu focused). `sudo` privileges are required.
 
 **Prerequisites:**
 
-1.  **Ubuntu Server:** A running Ubuntu server instance (e.g., version 20.04 LTS or newer).
-2.  **Docker:** Docker CE installed. Follow the official Docker installation guide for Ubuntu: [https://docs.docker.com/engine/install/ubuntu/](https://docs.docker.com/engine/install/ubuntu/)
-3.  **Nginx:** Nginx web server installed. `sudo apt update && sudo apt install nginx`
-4.  **Miniconda/Anaconda:** For managing the Python environment. Download and install from [https://docs.conda.io/projects/miniconda/en/latest/](https://docs.conda.io/projects/miniconda/en/latest/) or [https://www.anaconda.com/products/distribution](https://www.anaconda.com/products/distribution).
-5.  **Git:** For cloning the repository. `sudo apt install git`
+1.  **Ubuntu Server:** Version 20.04 LTS or newer recommended.
+2.  **Docker Engine:** Install Docker CE. Follow the [official Docker installation guide for Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
+3.  **Nginx (Recommended):** For reverse proxy. Install using `sudo apt update && sudo apt install nginx`.
+4.  **Python Environment Manager (Miniconda/Anaconda):** For managing the application's Python environment.
+    - Miniconda: [https://docs.conda.io/projects/miniconda/en/latest/](https://docs.conda.io/projects/miniconda/en/latest/)
+    - Anaconda: [https://www.anaconda.com/products/distribution](https://www.anaconda.com/products/distribution)
+5.  **Git:** For cloning the repository. `sudo apt install git`.
 
 **Deployment Steps:**
 
-1.  **Clone the Repository:**
-
+1.  **Clone Repository:**
     ```bash
-    git clone git@github.com:CSI-Genomics-and-Data-Analytics-Core/rstudio-portal.git /opt/rstudio-portal
+    sudo git clone git@github.com:CSI-Genomics-and-Data-Analytics-Core/rstudio-portal.git /opt/rstudio-portal
     cd /opt/rstudio-portal
     ```
+    *(Using `/opt/rstudio-portal` as the application directory. Adjust if needed.)*
 
-2.  **Set up Python Environment:**
+2.  **Set Up Python Environment:**
+    ```bash
+    # Create a Conda environment (e.g., named 'dspenv' for Data Science Portal)
+    conda create --name dspenv python=3.9 -y
+    conda activate dspenv
 
-    - Create and activate a Conda environment:
+    # Install dependencies
+    pip install -r requirements.txt
+    ```
+
+3.  **Configure Environment Variables:**
+    - Copy the example environment file:
       ```bash
-      conda create --name rstudio-env python=3.9 -y
-      conda activate rstudio-env
+      cp .env.example .env
       ```
-    - Install Python dependencies:
+    - **Edit `.env` and set appropriate values.** Refer to the "Configuration" section below and comments in `.env.example` for details on each variable. Key variables include:
+        - `SESSION_SECRET_KEY` (set to a strong random string)
+        - `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD`
+        - `DB_MOUNT_PATH` and `DATABASE_FILENAME` (if not using the default location)
+        - `USER_DATA_MOUNT_PATH` (if not using the default `user_data` subdirectory)
+        - Docker image names and resource limits if defaults are not suitable.
+
+4.  **Initialize Directories & Permissions:**
+    - The application attempts to create the database and `user_data` directory if they don't exist, based on configured paths.
+    - If `USER_DATA_MOUNT_PATH` or `DB_MOUNT_PATH` point to custom locations, ensure these directories exist and are writable by the user running the FastAPI application.
       ```bash
-      pip install -r requirements.txt
+      # Example: If USER_DATA_MOUNT_PATH=/srv/portal_user_data
+      sudo mkdir -p /srv/portal_user_data
+      sudo chown <your_app_user>:<your_app_group> /srv/portal_user_data
+
+      # Example: If DB_MOUNT_PATH=/var/portal_db
+      sudo mkdir -p /var/portal_db
+      sudo chown <your_app_user>:<your_app_group> /var/portal_db
       ```
+      Replace `<your_app_user>` and `<your_app_group>` with the actual user/group.
 
-3.  **Initialize Database & Directories:**
-
-    - The FastAPI application will create `db.sqlite3` and the `user_data` directory on its first run if they don't exist. Ensure the directory `/opt/rstudio-portal` is writable by the user running the FastAPI application, or adjust paths in `app/main.py` (`BASE_DIR`, `USER_DATA_BASE_DIR`) and create them manually with appropriate permissions.
-    - Manually create the base directory for user data if needed:
+5.  **Configure Nginx (Reverse Proxy - Recommended):**
+    - Copy the example Nginx configuration:
       ```bash
-      sudo mkdir -p /opt/rstudio-portal/user_data
-      sudo chown <your_app_user>:<your_app_group> /opt/rstudio-portal/user_data
-      # Replace <your_app_user> and <your_app_group> with the user/group that will run the FastAPI app
+      sudo cp nginx.conf /etc/nginx/sites-available/datascience-portal.conf
+      sudo ln -s /etc/nginx/sites-available/datascience-portal.conf /etc/nginx/sites-enabled/
       ```
-
-4.  **Configure Nginx:**
-
-    - Copy the provided `nginx.conf` to Nginx's configuration directory. It's recommended to place it in `sites-available` and create a symbolic link to `sites-enabled`.
-      ```bash
-      sudo cp nginx.conf /etc/nginx/sites-available/rstudio-portal.conf
-      sudo ln -s /etc/nginx/sites-available/rstudio-portal.conf /etc/nginx/sites-enabled/
-      ```
-    - **Important:** Edit `/etc/nginx/sites-available/rstudio-portal.conf`:
-      - Update `server_name` if you have a domain, or leave as `_` for IP-based access.
-      - Ensure the `alias` path in the `location /static` block points to the correct static files directory (e.g., `/opt/rstudio-portal/static`).
-      - If you changed the FastAPI application port from `8000`, update the `upstream fastapi_app` block.
-    - Test Nginx configuration and reload:
+    - **Edit `/etc/nginx/sites-available/datascience-portal.conf`:**
+        - Update `server_name your_domain.com www.your_domain.com;` to your server's domain or IP address.
+        - Verify the `root` path in `location /static` correctly points to `/opt/rstudio-portal/static` (or your chosen application directory + `/static`).
+        - Ensure `proxy_pass http://127.0.0.1:8001;` matches the host and port Uvicorn will run on (defined by `UVICORN_HOST`, `UVICORN_PORT` in your `.env` or defaults).
+    - Test and reload Nginx:
       ```bash
       sudo nginx -t
       sudo systemctl reload nginx
       ```
 
-5.  **Run the FastAPI Application:**
+6.  **Run the FastAPI Application:**
+    For production, use a process manager like `systemd`.
 
-    - It's highly recommended to run the FastAPI application using a process manager like `systemd` or `supervisor` for production.
-
-    - **Using `systemd` (Recommended):**
-
-      1.  Create a systemd service file at `/etc/systemd/system/rstudio-portal.service`:
-
+    - **Using `systemd`:**
+      1.  Create `/etc/systemd/system/datascience-portal.service`:
           ```ini
           [Unit]
-          Description=RStudio Portal FastAPI Application
+          Description=GeDaC Data Science Portal FastAPI Application
           After=network.target docker.service
           Requires=docker.service
 
           [Service]
-          User=<your_app_user> # User that owns /opt/rstudio-portal and has Docker permissions
+          User=<your_app_user>
           Group=<your_app_group>
-          WorkingDirectory=/opt/rstudio-portal
-          Environment="PATH=<path_to_your_conda_installation>/envs/<your_conda_env_name>/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" # Adjust Conda path and env name
-          ExecStart=<path_to_your_conda_installation>/envs/<your_conda_env_name>/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 # Adjust Conda path, env name, and port
+          WorkingDirectory=/opt/rstudio-portal # Or your chosen application directory
+
+          # Option 1: Load environment variables from .env file
+          EnvironmentFile=/opt/rstudio-portal/.env
+
+          # Option 2: Define all environment variables directly (less common for many vars)
+          # Environment="SESSION_SECRET_KEY=your_secret"
+          # Environment="DB_MOUNT_PATH=/var/portal_db"
+          # ... etc.
+
+          # Ensure Conda environment's bin directory is in PATH
+          Environment="PATH=/opt/miniconda3/envs/dspenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" # ADJUST Conda path & env name
+          ExecStart=/opt/miniconda3/envs/dspenv/bin/python app/main.py # ADJUST Conda path & env name. Runs the __main__ block in main.py
+
           Restart=always
-          RestartSec=3
+          RestartSec=5
 
           [Install]
           WantedBy=multi-user.target
           ```
+          - Replace `<your_app_user>`, `<your_app_group>`. This user must have permissions to run Docker commands (add to `docker` group: `sudo usermod -aG docker <your_app_user>`).
+          - **Adjust `EnvironmentFile` path if your `.env` file is elsewhere.**
+          - **Crucially, adjust `Environment="PATH=..."` and `ExecStart`** to your Conda installation path (e.g., `/opt/miniconda3`, `/home/user/anaconda3`) and your Conda environment name (e.g., `dspenv`).
+          - The `ExecStart` now directly calls `python app/main.py`, which will use the Uvicorn server settings from `app.core.config` (sourced from `.env`).
 
-          - **Note:** Replace `<your_app_user>` and `<your_app_group>`. This user needs to be able to run Docker commands (usually by being part of the `docker` group: `sudo usermod -aG docker <your_app_user>`).
-          - Adjust `Environment="PATH=..."` and `ExecStart` to match your Conda installation path (e.g., `/opt/miniconda3`, `/home/<your_user>/anaconda3`, etc.) and environment name.
-
-      2.  Reload systemd, enable, and start the service:
+      2.  Reload systemd, enable, and start:
           ```bash
           sudo systemctl daemon-reload
-          sudo systemctl enable rstudio-portal.service
-          sudo systemctl start rstudio-portal.service
-          sudo systemctl status rstudio-portal.service # To check status
+          sudo systemctl enable datascience-portal.service
+          sudo systemctl start datascience-portal.service
+          sudo systemctl status datascience-portal.service # Check status
+          journalctl -u datascience-portal.service -f # View logs
           ```
 
-    - **Directly (for testing, not recommended for production):**
+    - **Directly (for Development/Testing Only):**
       ```bash
-      conda activate rstudio-env
-      cd /opt/rstudio-portal
-      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      conda activate dspenv
+      cd /opt/rstudio-portal # Or your chosen application directory
+      # Ensure .env file is present in this directory or variables are exported
+      python app/main.py
       ```
+      The application will start using Uvicorn settings defined in `app.core.config` (via `.env` or defaults).
 
-6.  **Access the Portal:**
-
-    - Open your web browser and navigate to `http://<your_server_ip_or_domain>`.
-
-### Docker Deployment
-
-This section details how to build and run the RStudio Portal application itself as a Docker container. This is separate from the RStudio containers the application will manage.
-
-**1. Build the Docker Image:**
-
-Navigate to the root directory of the project (where the `Dockerfile` is located) and run:
-
-```bash
-_DOCKER_BUILDKIT=1 docker build -t rstudio-portal-app .
-```
-
-**2. Run the Docker Container:**
-
-The application is configured using environment variables. When running the Docker container, you need to pass these variables and mount volumes for persistent data (database and user RStudio data).
-
-**Example `docker run` command:**
-
-```bash
-docker run -d --name rstudio-portal-app-container \
-  -p 8000:8000 \
-  -v /path/on/host/for/db_data:/mnt/db_data \
-  -v /path/on/host/for/user_data:/mnt/user_data \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e DB_MOUNT_PATH="/mnt/db_data" \
-  -e DATABASE_FILENAME="rstudio_portal.db" \
-  -e USER_DATA_MOUNT_PATH="/mnt/user_data" \
-  -e INITIAL_ADMIN_USERNAME="admin" \
-  -e RSTUDIO_IMAGE="rocker/rstudio:latest" \
-  -e RSTUDIO_MIN_PORT="8787" \
-  -e RSTUDIO_MAX_PORT="9000" \
-  -e RSTUDIO_DEFAULT_MEMORY="1g" \
-  -e RSTUDIO_DEFAULT_CPUS="1.0" \
-  -e RSTUDIO_SESSION_EXPIRY_DAYS="14" \
-  -e SESSION_SECRET_KEY="your_very_strong_and_random_secret_key_here" \\ # pragma: allowlist secret
-  -e UVICORN_HOST="0.0.0.0" \
-  -e UVICORN_PORT="8000" \
-  rstudio-portal-app
-```
-
-**Explanation of `docker run` options:**
-
-- `-d`: Run the container in detached mode (in the background).
-- `--name rstudio-portal-app-container`: Assign a name to the container for easier management.
-- `-p 8000:8000`: Map port 8000 of the host to port 8000 of the container (where Uvicorn runs by default, or as configured by `UVICORN_PORT`).
-- `-v /path/on/host/for/db_data:/mnt/db_data`: Mount a host directory into the container at `/mnt/db_data`. This is where the application will store its database. **Replace `/path/on/host/for/db_data` with an actual absolute path on your Docker host.**
-- `-v /path/on/host/for/user_data:/mnt/user_data`: Mount a host directory into the container at `/mnt/user_data`. This is where the application will store RStudio user-specific data. **Replace `/path/on/host/for/user_data` with an actual absolute path on your Docker host.**
-- `-v /var/run/docker.sock:/var/run/docker.sock`: **Crucial for managing RStudio containers.** This mounts the Docker socket from the host into the container, allowing the FastAPI application to start, stop, and manage other Docker containers (the RStudio instances).
-- `-e VARIABLE_NAME="value"`: Set environment variables required by the application (see `.env.example` for a full list).
-  - `DB_MOUNT_PATH`: Should match the target path of the database volume mount inside the container (e.g., `/mnt/db_data`).
-  - `DATABASE_FILENAME`: The name of the SQLite database file.
-  - `USER_DATA_MOUNT_PATH`: Should match the target path of the user data volume mount inside the container (e.g., `/mnt/user_data`).
-  - `SESSION_SECRET_KEY`: **MUST be set to a strong, random string for security.**
-- `rstudio-portal-app`: The name of the Docker image built in the previous step.
-
-**Important Considerations for Docker Deployment:**
-
-- **Docker Socket Permissions:** The user inside the container (`appuser`) needs permission to access the Docker socket. If you encounter permission issues, you might need to adjust the group ownership or permissions of `/var/run/docker.sock` on the host, or run the container with a user that has appropriate rights (though running as root is generally discouraged for the application itself).
-- **Persistent Storage:** Ensure the host paths used for volumes (`/path/on/host/for/db_data`, `/path/on/host/for/user_data`) exist and have correct permissions for the Docker daemon to write to them.
-- **Environment Variables:** Always provide all required environment variables. Refer to `.env.example` for the complete list and their purpose.
-- **Nginx for Docker:** If you are running the FastAPI app in Docker and still want to use Nginx as a reverse proxy (e.g., for SSL termination, serving static files directly, or routing to multiple applications), Nginx would typically run on the host or as another Docker container. The Nginx configuration would then proxy requests to the Dockerized FastAPI application (e.g., `proxy_pass http://localhost:8000;` if port 8000 is mapped to the host).
+7.  **Access the Portal:**
+    Navigate to `http://<your_server_ip_or_domain>`.
 
 ---
 
-## Next Steps & Future Enhancements
+## Configuration (Environment Variables)
 
-- Admin dashboard for user and instance management.
-- Integration with LDAP or OAuth for authentication.
-- Automated credential generation and secure storage.
-- Resource usage monitoring (RAM, CPU, disk).
-- Option for users to download their home directory as a ZIP file.
-- **Support for additional environments (e.g., VS Code, R Shiny) in the future.**
+The application is configured using environment variables. These can be set in a `.env` file in the project root or directly in the environment where the application runs. See `.env.example` for a comprehensive list.
+
+**Key Variables:**
+
+*   `SESSION_SECRET_KEY`: **Critical for security.** A long, random string used to sign session cookies. Generate one using `openssl rand -hex 32`.
+*   `INITIAL_ADMIN_USERNAME`, `INITIAL_ADMIN_PASSWORD`: Credentials for the first admin user, created on initial database setup.
+*   `DB_MOUNT_PATH`: Absolute path to the directory where the SQLite database file will be stored. If empty, defaults to the project root.
+*   `DATABASE_FILENAME`: Name of the SQLite database file (e.g., `portal.db`). Defaults to `db.sqlite3`.
+*   `USER_DATA_MOUNT_PATH`: Absolute path to the base directory for storing persistent user data volumes. If empty, defaults to a `user_data` subdirectory within the project.
+*   `RSTUDIO_DOCKER_IMAGE`, `JUPYTER_DOCKER_IMAGE`: Specify the Docker images to use for RStudio and JupyterLab instances.
+*   `RSTUDIO_MIN_PORT`, `RSTUDIO_MAX_PORT`, `JUPYTER_MIN_PORT`, `JUPYTER_MAX_PORT`: Port ranges on the host for mapping to container services.
+*   `RSTUDIO_DEFAULT_MEMORY`, `RSTUDIO_DEFAULT_CPUS`, `JUPYTER_DEFAULT_MEMORY`, `JUPYTER_DEFAULT_CPUS`: Default resource limits for new instances.
+*   `RSTUDIO_SESSION_EXPIRY_DAYS`, `JUPYTER_SESSION_EXPIRY_DAYS`: How long instances remain active before automatic cleanup.
+*   `UVICORN_HOST`, `UVICORN_PORT`: Host and port for the Uvicorn server running the FastAPI application.
+
+---
+## Docker Deployment (Application Container)
+
+This section describes running the **GeDaC Data Science Portal application itself** as a Docker container. This is distinct from the RStudio/JupyterLab instances it manages.
+
+**1. Build the Application Docker Image:**
+   From the project root (containing the `Dockerfile`):
+   ```bash
+   docker build -t datascience-portal-app .
+   ```
+
+**2. Run the Application Container:**
+   You'll need to pass environment variables and mount volumes for the database, user data, and the Docker socket.
+
+   **Example `docker run` command:**
+   ```bash
+   docker run -d --name ds-portal-container \
+     -p 8001:8001 \ # Map host port to Uvicorn port inside container
+     -v /path/on/host/for_portal_db:/app/database_mount \      # Database storage
+     -v /path/on/host/for_portal_user_data:/app/user_data_mount \ # User instance data
+     -v /var/run/docker.sock:/var/run/docker.sock \          # Docker socket access
+     -e SESSION_SECRET_KEY='your_very_strong_random_secret_key' \ # pragma: allowlist secret
+     -e INITIAL_ADMIN_USERNAME='admin' \
+     -e INITIAL_ADMIN_PASSWORD='securepassword' \ # pragma: allowlist secret
+     -e DB_MOUNT_PATH='/app/database_mount' \
+     -e DATABASE_FILENAME='portal_main.db' \
+     -e USER_DATA_MOUNT_PATH='/app/user_data_mount' \
+     # Add all other necessary RStudio/JupyterLab config env vars from .env.example
+     -e RSTUDIO_DOCKER_IMAGE='rocker/rstudio:latest' \
+     -e JUPYTER_DOCKER_IMAGE='jupyter/datascience-notebook:latest' \
+     # ... (other env vars like ports, memory, expiry, etc.)
+     -e UVICORN_HOST='0.0.0.0' \
+     -e UVICORN_PORT='8001' \
+     datascience-portal-app
+   ```
+
+   **Key `docker run` options explained:**
+   - `-p 8001:8001`: Maps host port 8001 to container port 8001 (or as set by `UVICORN_PORT`).
+   - `-v /path/on/host/for_portal_db:/app/database_mount`: Mounts a host directory for the database.
+     - `DB_MOUNT_PATH` inside the container must then be `/app/database_mount`.
+   - `-v /path/on/host/for_portal_user_data:/app/user_data_mount`: Mounts a host directory for user instance data.
+     - `USER_DATA_MOUNT_PATH` inside the container must then be `/app/user_data_mount`.
+   - `-v /var/run/docker.sock:/var/run/docker.sock`: **Essential.** Allows the application container to manage other Docker containers.
+   - `-e VARIABLE="value"`: Set all required environment variables. **Crucially, `DB_MOUNT_PATH` and `USER_DATA_MOUNT_PATH` must match the *target paths* of your volume mounts inside the container.**
+
+   **Important Considerations for Dockerized Application:**
+   - **Permissions:** The user inside the application container (defined in `Dockerfile`, often non-root) needs access to the mounted Docker socket and write permissions to the mounted data/db volumes.
+   - **Host Paths:** Replace `/path/on/host/...` with actual, absolute paths on your Docker host. These directories must exist.
+   - **Nginx with Dockerized App:** If using Nginx as a reverse proxy, it would run on the host (or as another container) and proxy requests to the mapped port of the `ds-portal-container` (e.g., `proxy_pass http://localhost:8001;`).
+
+---
+
+## Future Enhancements
+
+- Comprehensive admin dashboard for user and instance lifecycle management.
+- Integration with institutional authentication (LDAP, OAuth2/OIDC).
+- Enhanced resource usage monitoring and reporting.
+- User self-service for data backup/download.
+- Support for additional development environments (e.g., VS Code Server, R Shiny Apps).
+- More granular permission controls.
