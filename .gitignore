@@ -51,7 +51,6 @@ renv/.cache/
 Thumbs.db
 
 # Documentation
-docs/
 inst/doc/
 vignettes/*.html
 vignettes/*.pdf

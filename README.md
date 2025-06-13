@@ -2,7 +2,7 @@
 
 A private, multi-user platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances on a Linux Server.
 
-![Architecture Diagram](architecture.png)
+![Architecture Diagram](docs/architecture.png)
 
 The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, and a reverse proxy to route traffic to the appropriate instances.
 
