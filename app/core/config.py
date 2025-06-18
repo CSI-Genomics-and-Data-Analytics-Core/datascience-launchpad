@@ -96,7 +96,15 @@ REMEMBER_ME_SESSION_DAYS = int(os.getenv("REMEMBER_ME_SESSION_DAYS", "7"))
 
 # --- AWS SES Configuration ---
 AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+# SMTP Credentials (preferred over access keys)
+AWS_SES_SMTP_USER = os.getenv("AWS_SES_SMTP_USER")
+AWS_SES_PASSWORD = os.getenv("AWS_SES_PASSWORD")
+# Fallback to access keys if SMTP credentials not provided
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 SES_FROM_EMAIL = os.getenv("SES_FROM_EMAIL", "noreply@yourdomain.com")
 SES_FROM_NAME = os.getenv("SES_FROM_NAME", "GeDaC Launchpad")
+
+# SES SMTP Configuration
+EMAIL_HOST = "email-smtp.ap-southeast-1.amazonaws.com"
+EMAIL_PORT = 465
