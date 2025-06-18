@@ -1,20 +1,18 @@
-import os  # Keep for os.makedirs, os.getenv (though latter is mostly in config)
+import os
 import logging
 import secrets
 import subprocess
-import re  # Keep for regex in registration
-import sqlite3  # Add missing import for sqlite3.Error handling
+import sqlite3
+from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from datetime import datetime  # Keep for datetime.utcnow() if still used directly
-from urllib.parse import quote
 
 # Import configurations, database, and auth functions from new modules
 from app.core.config import (
-    LAB_NAMES,
     USER_DATA_BASE_DIR,
     STATIC_DIR,
     TEMPLATES_JINJA_DIR,
@@ -30,15 +28,17 @@ from app.core.config import (
     JUPYTER_DEFAULT_MEMORY,
     JUPYTER_DEFAULT_CPUS,
     JUPYTER_SESSION_EXPIRY_DAYS,
-    INITIAL_ADMIN_USERNAME,  # Used in registration
+    INITIAL_ADMIN_USERNAME,  # Used for admin detection
     RSTUDIO_USER_STORAGE_LIMIT,
 )
 from app.db.database import get_db, init_db
 from app.auth.security import (
-    pwd_context,  # For password verification and hashing
     get_current_user,
     get_current_active_user,
+    create_user_session,
+    is_valid_nus_email,
 )
+from app.auth.otp import get_otp_service
 
 
 app = FastAPI()
@@ -67,200 +67,148 @@ async def root(request: Request, user: dict = Depends(get_current_user)):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "title": "Login"}
-    )
+    context = {"request": request, "title": "Login"}
+    return templates.TemplateResponse("login.html", context)
 
 
-@app.post("/login")
-async def login_action(
-    request: Request, username: str = Form(...), password: str = Form(...)
-):
-    db = get_db()  # Uses imported get_db
-    user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+@app.post("/request-otp")
+async def request_otp_action(request: Request, email: str = Form(...)):
+    email = email.strip().lower()
+
+    # Validate email format
+    if not is_valid_nus_email(email):
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Please enter a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg)",
+                "title": "Login",
+                "email_value": email,
+            },
+        )
+
+    # Check if user exists, if not create them automatically
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+
+    if not user:
+        # Auto-register new user with default lab
+        try:
+            cursor = db.cursor()
+
+            # Determine if the user should be admin (first user)
+            is_admin_val = 0
+            cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = cursor.fetchone()[0]
+            if user_count == 0 or email.lower() == INITIAL_ADMIN_USERNAME.lower():
+                is_admin_val = 1
+
+            # Create user account with default lab
+            cursor.execute(
+                "INSERT INTO users (email, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?)",
+                (email, is_admin_val, datetime.utcnow(), "General"),
+            )
+            db.commit()
+            logger.info(f"Auto-registered new user: {email}")
+
+        except sqlite3.Error as e:
+            logger.error(f"Error auto-registering user {email}: {str(e)}")
+            db.rollback()
+            return templates.TemplateResponse(
+                "login.html",
+                {
+                    "request": request,
+                    "error": "An error occurred. Please try again.",
+                    "title": "Login",
+                    "email_value": email,
+                },
+            )
+
     db.close()
 
-    if user and pwd_context.verify(
-        password, user["password_hash"]
-    ):  # Uses imported pwd_context
-        response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-        response.set_cookie(
-            key="username", value=username, httponly=True, samesite="Lax", secure=False
-        )  # Set secure=True if using HTTPS
-        return response
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request, "error": "Invalid credentials", "title": "Login"},
-    )
+    # Request OTP (works for both existing and newly created users)
+    otp_service = get_otp_service()
+    success, message = otp_service.create_otp(email)
 
-
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    return templates.TemplateResponse(
-        "register.html",
-        {
-            "request": request,
-            "title": "Register",
-            "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-            "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-        },
-    )
-
-
-@app.post("/register")
-async def register_action(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    lab_name_select: str = Form(...),
-    lab_name_other: str = Form(""),
-):
-    username = username.strip()
-
-    if (
-        username.lower() != INITIAL_ADMIN_USERNAME.lower()
-    ):  # Uses imported INITIAL_ADMIN_USERNAME
-        allowed_domains = [
-            r"^[a-zA-Z0-9._%+-]+@visitor\.nus\.edu\.sg$",
-            r"^[a-zA-Z0-9._%+-]+@u\.nus\.edu$",
-            r"^[a-zA-Z0-9._%+-]+@nus\.edu\.sg$",
-        ]
-
-        # Use fullmatch instead of match to ensure the entire string matches the pattern
-        is_valid_nus_email = any(
-            re.fullmatch(pattern, username.lower()) for pattern in allowed_domains
-        )
-
-        if not is_valid_nus_email:
-            logging.warning(f"Invalid email format attempted: {username}")
-            return templates.TemplateResponse(
-                "register.html",
-                {
-                    "request": request,
-                    "error": "Username must be a valid NUS email address (e.g., user@nus.edu.sg, user@u.nus.edu, user@visitor.nus.edu.sg).",
-                    "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-                    "username_value": username,  # Pass entered username back
-                    "password_value": password,  # Pass entered password back
-                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
-                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
-                },
-            )
-
-    # Validate lab name
-    final_lab_name = ""
-    if lab_name_select == "Other":
-        lab_name_other_stripped = lab_name_other.strip()
-        if not lab_name_other_stripped:
-            return templates.TemplateResponse(
-                "register.html",
-                {
-                    "request": request,
-                    "error": "Please specify your lab name when 'Other' is selected.",
-                    "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-                    "username_value": username,  # Pass entered username back
-                    "password_value": password,  # Pass entered password back
-                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
-                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
-                },
-            )
-        final_lab_name = lab_name_other_stripped
-    else:
-        if lab_name_select not in LAB_NAMES:  # Uses imported LAB_NAMES
-            return templates.TemplateResponse(
-                "register.html",
-                {
-                    "request": request,
-                    "error": "Invalid lab selection.",
-                    "title": "Register",
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-                    "username_value": username,  # Pass entered username back
-                    "password_value": password,  # Pass entered password back
-                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
-                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
-                },
-            )
-        final_lab_name = lab_name_select
-
-    if not final_lab_name:  # Should ideally be caught by above checks
+    if success:
         return templates.TemplateResponse(
-            "register.html",
+            "login.html",
             {
                 "request": request,
-                "error": "Lab name is mandatory.",
-                "title": "Register",
-                "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-                "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-                "username_value": username,  # Pass entered username back
-                "password_value": password,  # Pass entered password back
-                "lab_name_select_value": lab_name_select,  # Pass selected lab back
-                "lab_name_other_value": lab_name_other,  # Pass other lab name back
+                "success": message,
+                "title": "Login",
+                "email_value": email,
+                "otp_sent": True,
+            },
+        )
+    else:
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": message,
+                "title": "Login",
+                "email_value": email,
             },
         )
 
-    db = get_db()  # Uses imported get_db
-    try:
-        cursor = db.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
-            db.close()
-            error = "Username already exists."
-            return templates.TemplateResponse(
-                "register.html",
-                {
-                    "request": request,
-                    "error": error,
-                    "initial_admin_username": INITIAL_ADMIN_USERNAME,  # Uses imported INITIAL_ADMIN_USERNAME
-                    "title": "Register",
-                    "lab_names": LAB_NAMES,  # Uses imported LAB_NAMES
-                    "username_value": username,  # Pass entered username back
-                    "password_value": password,  # Pass entered password back
-                    "lab_name_select_value": lab_name_select,  # Pass selected lab back
-                    "lab_name_other_value": lab_name_other,  # Pass other lab name back
-                },
-            )
 
-        hashed_password = pwd_context.hash(password)  # Uses imported pwd_context
-        # Ensure created_at is populated for new users (though DB default should handle it)
-        # Determine if the user should be admin
-        is_admin_val = 0
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        if (
-            user_count == 0 or username.lower() == INITIAL_ADMIN_USERNAME.lower()
-        ):  # Uses imported INITIAL_ADMIN_USERNAME
-            is_admin_val = 1
+@app.post("/verify-otp")
+async def verify_otp_action(
+    request: Request,
+    email: str = Form(...),
+    otp_code: str = Form(...),
+    remember_me: bool = Form(False),
+):
+    email = email.strip().lower()
+    otp_code = otp_code.strip()
 
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?, ?)",
-            (
-                username,
-                hashed_password,
-                is_admin_val,
-                datetime.utcnow(),
-                final_lab_name,
-            ),
+    # Verify OTP
+    otp_service = get_otp_service()
+    success, message = otp_service.verify_otp(email, otp_code)
+
+    if success:
+        # Update last login
+        db = get_db()
+        db.execute(
+            "UPDATE users SET last_login = ? WHERE email = ?",
+            (datetime.utcnow(), email),
         )
         db.commit()
-    except sqlite3.Error:
-        db.close()
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "error": "Username already taken",
-                "title": "Register",
-            },
-        )
-    finally:
         db.close()
 
-    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    return response
+        # Create session
+        session_data = create_user_session(email, remember_me)
+
+        response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+        response.set_cookie(
+            key="user_email",
+            value=email,
+            httponly=True,
+            samesite="Lax",
+            secure=False,  # Set to True in production with HTTPS
+            expires=session_data["expires_at"] if remember_me else None,
+        )
+        response.set_cookie(
+            key="session_expires",
+            value=session_data["expires_at"].isoformat(),
+            httponly=True,
+            samesite="Lax",
+            secure=False,  # Set to True in production with HTTPS
+            expires=session_data["expires_at"] if remember_me else None,
+        )
+        return response
+    else:
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": message,
+                "title": "Login",
+                "email_value": email,
+                "otp_sent": True,
+            },
+        )
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -365,14 +313,12 @@ async def request_rstudio_instance(
             status_code=status.HTTP_302_FOUND,
         )
 
-    username_full = current_user["username"]
-    # Ensure username_part correctly extracts the part before '@'
-    username_part = (
-        username_full.split("@")[0] if "@" in username_full else username_full
-    )
+    email_full = current_user["email"]
+    # Extract the part before '@' for container and directory naming
+    email_username = email_full.split("@")[0] if "@" in email_full else email_full
 
-    # Construct container_name using the (hopefully) corrected username_part
-    container_name = f"rstudio-{username_part}-{secrets.token_hex(4)}"
+    # Construct container_name using the email username part
+    container_name = f"rstudio-{email_username}-{secrets.token_hex(4)}"
     rstudio_password = secrets.token_urlsafe(12)
 
     # Find an available port (very basic, improve for production)
@@ -386,8 +332,7 @@ async def request_rstudio_instance(
         host_port += 1
         if host_port > RSTUDIO_MAX_PORT:  # Use imported RSTUDIO_MAX_PORT
             db.close()
-            # OLD: raise HTTPException(status_code=500, detail="No available ports for RStudio.")
-            # NEW: Redirect with error
+            # Return redirect with error message instead of raising exception
             error_message = quote(
                 "No available ports for RStudio. Please try again later or contact an administrator."
             )
@@ -396,9 +341,9 @@ async def request_rstudio_instance(
                 status_code=status.HTTP_302_FOUND,
             )
 
-    # Use username_part for the user-specific data directory path
+    # Use email_username for the user-specific data directory path
     user_specific_data_dir = (
-        USER_DATA_BASE_DIR / username_part
+        USER_DATA_BASE_DIR / email_username
     )  # Uses imported USER_DATA_BASE_DIR
     os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
 
@@ -445,7 +390,7 @@ async def request_rstudio_instance(
             "-p",
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
             "-e",
-            f"USER={username_part}",  # Use username_part for the RStudio USER env variable (dashboard must show this same username)
+            f"USER={email_username}",  # Use email_username for the RStudio USER env variable
         ]
         cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use imported RSTUDIO_DOCKER_IMAGE
 
@@ -569,11 +514,9 @@ async def request_jupyterlab_instance(
             status_code=status.HTTP_302_FOUND,
         )
 
-    username_full = current_user["username"]
-    username_part = (
-        username_full.split("@")[0] if "@" in username_full else username_full
-    )
-    container_name = f"jupyterlab-{username_part}-{secrets.token_hex(4)}"
+    email_full = current_user["email"]
+    email_username = email_full.split("@")[0] if "@" in email_full else email_full
+    container_name = f"jupyterlab-{email_username}-{secrets.token_hex(4)}"
     jupyter_token = secrets.token_urlsafe(24)  # Generate a secure token
 
     # Find an available port for JupyterLab
@@ -595,9 +538,9 @@ async def request_jupyterlab_instance(
                 status_code=status.HTTP_302_FOUND,
             )
 
-    # Use username_part for the user-specific data directory path
+    # Use email_username for the user-specific data directory path
     user_specific_data_dir = (
-        USER_DATA_BASE_DIR / username_part
+        USER_DATA_BASE_DIR / email_username
     )  # Uses imported USER_DATA_BASE_DIR
     os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
 
@@ -655,7 +598,7 @@ async def request_jupyterlab_instance(
             # Example: "-u", "1000:100", # Run as jovyan user (UID 1000) and users group (GID 100)
             # This might need to be configurable or handled by the Docker image itself.
             # For now, let's assume the image handles user permissions or the user_specific_data_dir is world-writable enough.
-            # The -e NB_USER=$username_part and -e NB_UID=$(id -u) might be useful if the image supports it.
+            # The -e NB_USER=$email_username and -e NB_UID=$(id -u) might be useful if the image supports it.
             # The jupyter/docker-stacks images often create a user 'jovyan' with UID 1000.
             # Let's add a CHOWN_HOME='yes' and CHOWN_EXTRA_OPTS='-R' which some images use to fix permissions.
             # Also, NB_PREFIX might be useful if running behind a proxy, but not essential for direct access.
@@ -752,7 +695,7 @@ async def stop_instance_action(
         get_current_active_user
     ),  # Uses imported get_current_active_user
 ):
-    db = get_db()  # Uses imported get_db
+    db = get_db()  # Uses imported get_current_active_user
     instance = db.execute(
         "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
@@ -790,7 +733,7 @@ async def stop_instance_action(
         )
 
     logging.info(
-        f"User '{current_user['username']}' attempting to stop instance ID {instance_id} (Container: {container_name})"
+        f"User '{current_user['email']}' attempting to stop instance ID {instance_id} (Container: {container_name})"
     )
 
     error_accumulator = []
@@ -982,7 +925,7 @@ async def delete_instance(
         get_current_active_user
     ),  # Uses imported get_current_active_user
 ):
-    db = get_db()  # Uses imported get_db
+    db = get_db()  # Uses imported get_current_active_user
     instance = db.execute(
         "SELECT * FROM user_instances WHERE id = ?",
         (instance_id,),
@@ -1023,7 +966,8 @@ async def delete_instance(
 @app.get("/logout")
 async def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    response.delete_cookie("username")
+    response.delete_cookie("user_email")
+    response.delete_cookie("session_expires")
     return response
 
 
@@ -1053,7 +997,7 @@ async def admin_dashboard(
 
         # Get all users
         users_data = db.execute(
-            "SELECT id, username, is_admin, created_at, lab_name FROM users ORDER BY id"
+            "SELECT id, email, is_admin, created_at, lab_name FROM users ORDER BY id"
         ).fetchall()
 
         # Get all instances with ordered status

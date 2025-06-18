@@ -1,4 +1,4 @@
-\ {% extends "base.html" %} {% block title %}Welcome to RStudio & JupyterLab Portal{%
+\ {% extends "base.html" %} {% block title %}Welcome to GeDaC Launchpad{%
 endblock %} {% block content %}
 <div class="container mt-5">
   <div class="jumbotron text-center">
@@ -16,36 +16,29 @@ endblock %} {% block content %}
       style="max-width: 180px; vertical-align: middle;"
       />
     </div>
-    <h1 class="display-4">Welcome to Your Data Science Launchpad</h1>
+    <h1 class="display-4">Welcome to GeDaC Launchpad</h1>
     <p class="lead fs-3">Your personal RStudio <strong>or</strong> JupyterLab environment, on demand.</p>
-    <p class="text-muted small fs-6">Brought to you by GeDaC</p>
+    <p class="text-muted small fs-6">Genomics and Data Analytics Centre (GeDaC)</p>
     <hr class="my-4" />
     <p class="fs-5">
-      Access your dedicated RStudio or JupyterLab instance, manage your projects, and work seamlessly.
+      Access your dedicated RStudio or JupyterLab instance with secure email-based authentication. Simply enter your NUS email to get started.
     </p>
     <div class="d-flex justify-content-center gap-2 mt-4">
       <a
         class="btn btn-primary btn-lg"
         href="{{ url_for('login_page') }}"
         role="button"
-        style="min-width: 130px"
-        >Login</a
-      >
-      <a
-        class="btn btn-secondary btn-lg"
-        href="{{ url_for('register_page') }}"
-        role="button"
-        style="min-width: 130px"
-        >Register</a
+        style="min-width: 180px"
+        >Access Platform</a
       >
     </div>
   </div>
 
   <div class="row mt-5">
     <div class="col-md-4">
-      <h2>Zero installation</h2>
+      <h2>Zero Installation</h2>
       <p>
-        Log in to request and manage your personal RStudio or JupyterLab container with a few clicks. Run entirely in your browser. No client software installation required.
+        Enter your NUS email to access your personal RStudio or JupyterLab container. Runs entirely in your browser with no client software installation required.
       </p>
     </div>
     <div class="col-md-4">
@@ -55,9 +48,15 @@ endblock %} {% block content %}
       </p>
     </div>
     <div class="col-md-4">
-      <h2>Compatible with any device</h2>
+      <h2>Secure Access</h2>
       <p>
-        Launch on any device with a browser—even a mobile phone or tablet.
+        Email-based OTP authentication ensures secure access to your data science environment. No passwords to remember.
+      </p>
+    </div>
+    <div class="col-md-4">
+      <h2>Compatible with Any Device</h2>
+      <p>
+        Launch on any device with a browser—desktop, laptop, tablet, or mobile phone.
       </p>
     </div>
   </div>

@@ -1,20 +1,23 @@
 # GeDaC Data Science Portal: Self-Hosted RStudio & JupyterLab
 
-A private, multi-user platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances on a Linux Server.
+A private, multi-user platform for managing individual RStudio and JupyterLab (Data Science Notebook) instances on a Linux Server with **email-based OTP authentication**.
 
 ![Architecture Diagram](docs/architecture.png)
 
-The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, and a reverse proxy to route traffic to the appropriate instances.
+The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, **email-based OTP authentication via AWS SES**, and a reverse proxy to route traffic to the appropriate instances.
 
 ## Core Features
 
-- **User Self-Service:** Register, log in, and request personal RStudio or JupyterLab containerized environments.
+- **Email-Based OTP Authentication:** Passwordless login using 6-digit codes sent via email
+- **Auto-Registration:** Users are automatically registered on first login with their NUS email
+- **User Self-Service:** Log in and request personal RStudio or JupyterLab containerized environments.
 - **Admin Controls:**
   - Manage users and instances.
   - Configure resource quotas (memory, CPU) per instance.
   - Set automatic session expiration.
 - **Multi-Environment Support:** Launch either RStudio or JupyterLab instances on demand.
 - **Persistent Storage:** User data is saved in dedicated volumes.
+- **Session Management:** 24-hour default sessions with optional 7-day "Remember Me"
 
 ---
 
@@ -22,19 +25,103 @@ The platform uses Docker containers to isolate user environments, a FastAPI back
 
 - **Backend:** Python (FastAPI)
 - **Frontend:** Jinja2 Templates with HTML & CSS
-- **Authentication:** Secure session-based authentication.
+- **Authentication:** Email-based OTP via AWS SES + secure session-based authentication
 - **Database:** SQLite (default).
+- **Email Service:** AWS Simple Email Service (SES)
 - **Containerization:** Docker (utilizing `rocker/rstudio` and `jupyter/datascience-notebook` base images).
 - **Instance Lifecycle Management:** Python scripts (e.g., for cleanup of expired instances).
 - **Reverse Proxy (Recommended):** Nginx or Traefik for SSL termination and routing.
+
+---
+
+## Authentication System
+
+### OTP-Based Login Process
+1. **User enters NUS email address** on login page
+2. **System sends 6-digit OTP** via AWS SES (valid for 10 minutes)
+3. **User enters OTP code** from email
+4. **Session created** for 24 hours (or 7 days with "Remember Me")
+
+### Security Features
+- **Rate limiting:** Max 3 OTP requests per email per hour
+- **Attempt limiting:** Max 3 incorrect OTP attempts per code
+- **NUS email validation:** Only accepts `@nus.edu.sg`, `@u.nus.edu`, `@visitor.nus.edu.sg`
+- **Session management:** Automatic expiry and secure cookies
+
+### Setup Requirements
+- **AWS SES account** with verified sender email
+- **Environment variables** for AWS credentials and email configuration
+- See `docs/OTP_SETUP.md` for detailed setup instructions
+
+---
+
+## Quick Start with OTP Authentication
+
+### 1. Prerequisites
+- Python 3.8+
+- Docker installed and running
+- AWS account with SES access
+- Valid NUS email address for testing
+
+### 2. Setup AWS SES
+1. Sign up for AWS and navigate to SES
+2. Verify your sender email address (e.g., `noreply@yourdomain.com`)
+3. Create IAM user with SES sending permissions
+4. Note down AWS Access Key ID and Secret Access Key
+
+### 3. Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+cd rstudio-portal
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your AWS SES credentials
+```
+
+### 4. Configure Environment Variables
+Edit `.env` file with your settings:
+```bash
+# Required AWS SES Configuration
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+SES_FROM_EMAIL=noreply@yourdomain.com
+SES_FROM_NAME=RStudio Portal
+
+# Admin Configuration
+INITIAL_ADMIN_USERNAME=admin@nus.edu.sg
+```
+
+### 5. Run the Application
+```bash
+# Start the application
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# Or use the included script if available
+# ./start.sh
+```
+
+### 6. Access the Portal
+1. Open browser to `http://localhost:8001`
+2. Login with your NUS email address (auto-registration on first login)
+3. Enter OTP sent to your email
+4. Create your first RStudio or JupyterLab instance!
+
+For detailed setup instructions, see `docs/OTP_SETUP.md`.
+
 ---
 
 ## User Workflow
 
 1.  **Access Portal:** Users navigate to the web portal.
-2.  **Register/Login:** New users register; existing users log in.
+2.  **Login with OTP:** Users enter their NUS email, receive OTP code, and authenticate (auto-registered on first login).
 3.  **Request Environment:** From their dashboard, users can request an RStudio or a JupyterLab instance.
-4.  **Provisioning:**
+5.  **Provisioning:**
     - The backend initiates the creation of a new Docker container for the user.
     - Container details (ID, assigned port, access credentials/token, expiration date) are recorded in the database.
     - Example Docker launch commands (managed by the application):

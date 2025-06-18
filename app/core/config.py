@@ -83,3 +83,20 @@ INITIAL_ADMIN_PASSWORD = os.getenv(
 UVICORN_HOST = os.getenv("UVICORN_HOST", "0.0.0.0")
 UVICORN_PORT = int(os.getenv("UVICORN_PORT", "8001"))
 SESSION_DURATION_HOURS = int(os.getenv("SESSION_DURATION_HOURS", "8"))
+
+# --- OTP Configuration ---
+OTP_VALIDITY_MINUTES = int(os.getenv("OTP_VALIDITY_MINUTES", "10"))
+OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6"))
+MAX_OTP_ATTEMPTS = int(os.getenv("MAX_OTP_ATTEMPTS", "3"))
+MAX_OTP_REQUESTS_PER_HOUR = int(os.getenv("MAX_OTP_REQUESTS_PER_HOUR", "3"))
+
+# --- Session Configuration ---
+DEFAULT_SESSION_HOURS = int(os.getenv("DEFAULT_SESSION_HOURS", "24"))
+REMEMBER_ME_SESSION_DAYS = int(os.getenv("REMEMBER_ME_SESSION_DAYS", "7"))
+
+# --- AWS SES Configuration ---
+AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+SES_FROM_EMAIL = os.getenv("SES_FROM_EMAIL", "noreply@yourdomain.com")
+SES_FROM_NAME = os.getenv("SES_FROM_NAME", "GeDaC Launchpad")

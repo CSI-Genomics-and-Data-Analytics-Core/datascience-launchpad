@@ -1,48 +1,122 @@
-{% extends "base.html" %} {% block title %}Login - RStudio Portal{% endblock %}
+{% extends "base.html" %} {% block title %}Login - GeDaC Launchpad{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-md-6 col-lg-4">
     <div class="card mt-5">
       <div class="card-body">
-        <h2 class="card-title text-center mb-4">Login</h2>
+        <h2 class="card-title text-center mb-4">GeDaC Launchpad</h2>
         {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form method="post">
+        {% if success %}
+        <div class="alert alert-success">{{ success }}</div>
+        {% endif %}
+
+        <!-- Step 1: Email Input -->
+        {% if not otp_sent %}
+        <form method="post" action="/request-otp">
           <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
+            <label for="email" class="form-label">Email Address</label>
             <input
-              type="text"
-              name="username"
-              id="username"
+              type="email"
+              name="email"
+              id="email"
               class="form-control"
+              placeholder="your.email@nus.edu.sg"
+              value="{{ email_value or '' }}"
               required
             />
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input
-              type="password"
-              name="password"
-              id="password"
-              class="form-control"
-              required
-            />
+            <div class="form-text">
+              Enter your NUS email address to access the platform
+            </div>
           </div>
           <div class="d-grid">
-            <button type="submit" class="btn btn-primary">Login</button>
+            <button type="submit" class="btn btn-primary btn-lg">Send Access Code</button>
           </div>
         </form>
-        <p class="mt-3 text-center">
-          This portal provides access to RStudio instances for data analysis and
-          statistical computing.
-        </p>
-        <p class="mt-3 text-center">
-          Don't have an account?
-          <a href="{{ url_for('register_page') }}">Register here</a>
-        </p>
+        {% else %}
+
+        <!-- Step 2: OTP Verification -->
+        <div class="text-center mb-3">
+          <i class="fas fa-envelope-open-text fa-3x text-primary mb-2"></i>
+          <p class="text-muted">We've sent a 6-digit code to<br><strong>{{ email_value }}</strong></p>
+        </div>
+
+        <form method="post" action="/verify-otp">
+          <input type="hidden" name="email" value="{{ email_value }}">
+          <div class="mb-3">
+            <label for="otp_code" class="form-label">Enter 6-digit code</label>
+            <input
+              type="text"
+              name="otp_code"
+              id="otp_code"
+              class="form-control text-center"
+              placeholder="000000"
+              maxlength="6"
+              pattern="[0-9]{6}"
+              style="font-size: 1.5rem; letter-spacing: 0.5rem;"
+              required
+              autofocus
+            />
+          </div>
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
+            <label class="form-check-label" for="remember_me">
+              Keep me signed in for 7 days
+            </label>
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-success btn-lg">Verify & Access</button>
+            <a href="/login" class="btn btn-outline-secondary">Use Different Email</a>
+          </div>
+        </form>
+
+        <div class="text-center mt-3">
+          <form method="post" action="/request-otp" style="display: inline;">
+            <input type="hidden" name="email" value="{{ email_value }}">
+            <button type="submit" class="btn btn-link btn-sm p-0">Resend Code</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <div class="mt-4 text-center">
+          <p class="text-muted">
+            <small>
+              <strong>GeDaC Launchpad</strong> provides secure access to RStudio and JupyterLab instances for data analysis and statistical computing.
+            </small>
+          </p>
+          <p class="text-muted">
+            <small>
+              <strong>Accepted email formats:</strong><br>
+              user@nus.edu.sg • user@u.nus.edu • user@visitor.nus.edu.sg
+            </small>
+          </p>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+// Auto-focus and auto-submit OTP input
+document.addEventListener('DOMContentLoaded', function() {
+    const otpInput = document.getElementById('otp_code');
+    if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+            // Only allow numbers
+            this.value = this.value.replace(/[^0-9]/g, '');
+
+            // Auto-submit when 6 digits are entered
+            if (this.value.length === 6) {
+                this.form.submit();
+            }
+        });
+
+        // Select all text when focused
+        otpInput.addEventListener('focus', function(e) {
+            this.select();
+        });
+    }
+});
+</script>
 {% endblock %}
