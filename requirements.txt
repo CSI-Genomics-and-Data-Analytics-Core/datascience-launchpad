@@ -8,4 +8,3 @@ python-jose[cryptography]
 pre-commit
 detect-secrets
 python-dotenv
-boto3

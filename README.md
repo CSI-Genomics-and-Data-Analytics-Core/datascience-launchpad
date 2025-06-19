@@ -4,7 +4,7 @@ A private, multi-user platform for managing individual RStudio and JupyterLab (D
 
 ![Architecture Diagram](docs/architecture.png)
 
-The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, **email-based OTP authentication via AWS SES**, and a reverse proxy to route traffic to the appropriate instances.
+The platform uses Docker containers to isolate user environments, a FastAPI backend for user management, **email-based OTP authentication via SMTP**, and a reverse proxy to route traffic to the appropriate instances.
 
 ## Core Features
 
@@ -25,7 +25,7 @@ The platform uses Docker containers to isolate user environments, a FastAPI back
 
 - **Backend:** Python (FastAPI)
 - **Frontend:** Jinja2 Templates with HTML & CSS
-- **Authentication:** Email-based OTP via AWS SES + secure session-based authentication
+- **Authentication:** Email-based OTP via SMTP + secure session-based authentication
 - **Database:** SQLite (default).
 - **Email Service:** AWS Simple Email Service (SES)
 - **Containerization:** Docker (utilizing `rocker/rstudio` and `jupyter/datascience-notebook` base images).
@@ -38,7 +38,7 @@ The platform uses Docker containers to isolate user environments, a FastAPI back
 
 ### OTP-Based Login Process
 1. **User enters NUS email address** on login page
-2. **System sends 6-digit OTP** via AWS SES (valid for 10 minutes)
+2. **System sends 6-digit OTP** via SMTP email (valid for 10 minutes)
 3. **User enters OTP code** from email
 4. **Session created** for 24 hours (or 7 days with "Remember Me")
 
@@ -49,7 +49,7 @@ The platform uses Docker containers to isolate user environments, a FastAPI back
 - **Session management:** Automatic expiry and secure cookies
 
 ### Setup Requirements
-- **AWS SES account** with verified sender email
+- **SMTP email provider** with verified sender email
 - **Environment variables** for AWS credentials and email configuration
 - See `docs/OTP_SETUP.md` for detailed setup instructions
 
@@ -63,7 +63,7 @@ The platform uses Docker containers to isolate user environments, a FastAPI back
 - AWS account with SES access
 - Valid NUS email address for testing
 
-### 2. Setup AWS SES
+### 2. Setup SMTP Email Provider
 1. Sign up for AWS and navigate to SES
 2. Verify your sender email address (e.g., `noreply@yourdomain.com`)
 3. Create IAM user with SES sending permissions
@@ -80,13 +80,13 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your AWS SES credentials
+# Edit .env with your SMTP credentials
 ```
 
 ### 4. Configure Environment Variables
 Edit `.env` file with your settings:
 ```bash
-# Required AWS SES Configuration
+# Required SMTP Configuration
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-access-key-id
 AWS_SECRET_ACCESS_KEY=your-secret-access-key

@@ -143,13 +143,13 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
-            {% if request.cookies.get("username") %}
+            {% if request.state.user %}
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('dashboard') }}"
                 >Dashboard</a
               >
             </li>
-            {% if request.state.user and request.state.user.is_admin %}
+            {% if request.state.user.is_admin %}
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('admin_dashboard') }}"
                 >Admin</a
@@ -158,7 +158,7 @@
             {% endif %}
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('logout') }}"
-                >Logout ({{ request.cookies.get("user_email") }})</a
+                >Logout ({{ request.state.user["email"] }})</a
               >
             </li>
             {% else %}

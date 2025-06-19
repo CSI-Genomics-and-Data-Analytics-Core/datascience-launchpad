@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Import configurations, database, and auth functions from new modules
 from app.core.config import (
@@ -41,7 +42,22 @@ from app.auth.security import (
 from app.auth.otp import get_otp_service
 
 
+class UserMiddleware(BaseHTTPMiddleware):
+    """Middleware to populate request.state.user for templates"""
+
+    async def dispatch(self, request: Request, call_next):
+        # Get user from cookies and populate request.state
+        user = get_current_user(request)
+        request.state.user = user
+        response = await call_next(request)
+        return response
+
+
 app = FastAPI()
+
+# Add user middleware
+app.add_middleware(UserMiddleware)
+
 # Mount static files using STATIC_DIR from config
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Setup templates using TEMPLATES_JINJA_DIR from config
@@ -67,7 +83,10 @@ async def root(request: Request, user: dict = Depends(get_current_user)):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    message = request.query_params.get("message")
     context = {"request": request, "title": "Login"}
+    if message:
+        context["success"] = message
     return templates.TemplateResponse("login.html", context)
 
 
@@ -965,9 +984,16 @@ async def delete_instance(
 
 @app.get("/logout")
 async def logout(request: Request):
-    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    response.delete_cookie("user_email")
-    response.delete_cookie("session_expires")
+    response = RedirectResponse(
+        url="/login?message=Successfully logged out", status_code=status.HTTP_302_FOUND
+    )
+    # Delete cookies with the same parameters they were set with
+    response.delete_cookie(
+        key="user_email", httponly=True, samesite="Lax", secure=False
+    )
+    response.delete_cookie(
+        key="session_expires", httponly=True, samesite="Lax", secure=False
+    )
     return response
 
 

@@ -4,19 +4,16 @@ import smtplib
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import boto3
-from botocore.exceptions import ClientError
 
 from app.core.config import (
-    AWS_REGION,
-    AWS_SES_SMTP_USER,
-    AWS_SES_PASSWORD,
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY,
-    SES_FROM_EMAIL,
-    SES_FROM_NAME,
+    SMTP_USER,
+    SMTP_PASSWORD,
+    SMTP_FROM_EMAIL,
+    SMTP_FROM_NAME,
     EMAIL_HOST,
     EMAIL_PORT,
+    EMAIL_USE_SSL,
+    EMAIL_USE_TLS,
     OTP_VALIDITY_MINUTES,
     OTP_LENGTH,
     MAX_OTP_ATTEMPTS,
@@ -29,23 +26,11 @@ logger = logging.getLogger(__name__)
 
 class OTPService:
     def __init__(self):
-        # Prefer SMTP credentials over SES API credentials
-        self.use_smtp = bool(AWS_SES_SMTP_USER and AWS_SES_PASSWORD)
-
-        if not self.use_smtp and AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-            # Fallback to SES API if SMTP credentials not available
-            self.ses_client = boto3.client(
-                "ses",
-                region_name=AWS_REGION,
-                aws_access_key_id=AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            )
-            logger.info("Using AWS SES API for email sending")
-        elif self.use_smtp:
-            logger.info("Using AWS SES SMTP for email sending")
-        else:
-            logger.error("No valid AWS SES credentials found (neither SMTP nor API)")
-            raise ValueError("AWS SES credentials not configured")
+        # Check if SMTP credentials are configured
+        if not SMTP_USER or not SMTP_PASSWORD:
+            logger.error("SMTP credentials not configured")
+            raise ValueError("SMTP credentials not configured")
+        logger.info("Using SMTP for email sending")
 
     def generate_otp(self) -> str:
         """Generate a random OTP of specified length"""
@@ -184,7 +169,7 @@ class OTPService:
             db.close()
 
     def send_otp_email(self, email: str, otp_code: str) -> tuple[bool, str]:
-        """Send OTP email via AWS SES (SMTP or API)"""
+        """Send OTP email via SMTP"""
         try:
             subject = f"Your GeDaC Launchpad Access Code: {otp_code}"
 
@@ -238,24 +223,10 @@ GeDaC Launchpad Team
 </html>
             """
 
-            if self.use_smtp:
-                return self._send_email_smtp(email, subject, body_text, body_html)
-            else:
-                return self._send_email_ses_api(email, subject, body_text, body_html)
-
-        except Exception as e:
-            logger.error(f"Unexpected error sending email to {email}: {str(e)}")
-            return False, "Failed to send email. Please try again."
-
-    def _send_email_smtp(
-        self, email: str, subject: str, body_text: str, body_html: str
-    ) -> tuple[bool, str]:
-        """Send email using SMTP"""
-        try:
             # Create message
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = f"{SES_FROM_NAME} <{SES_FROM_EMAIL}>"
+            msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
             msg["To"] = email
 
             # Create text and HTML parts
@@ -266,10 +237,19 @@ GeDaC Launchpad Team
             msg.attach(text_part)
             msg.attach(html_part)
 
-            # Send email
-            with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
-                server.login(AWS_SES_SMTP_USER, AWS_SES_PASSWORD)
-                server.send_message(msg)
+            # Send email via SMTP
+            if EMAIL_USE_SSL:
+                # Use SSL connection (typically port 465)
+                with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
+            else:
+                # Use regular SMTP with optional TLS (typically port 587)
+                with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+                    if EMAIL_USE_TLS:
+                        server.starttls()
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
 
             logger.info(f"Email sent successfully via SMTP to {email}")
             return True, ""
@@ -282,33 +262,6 @@ GeDaC Launchpad Team
                 f"Unexpected error sending email via SMTP to {email}: {str(e)}"
             )
             return False, f"Failed to send email: {str(e)}"
-
-    def _send_email_ses_api(
-        self, email: str, subject: str, body_text: str, body_html: str
-    ) -> tuple[bool, str]:
-        """Send email using SES API"""
-        try:
-            response = self.ses_client.send_email(
-                Destination={"ToAddresses": [email]},
-                Message={
-                    "Body": {
-                        "Html": {"Charset": "UTF-8", "Data": body_html},
-                        "Text": {"Charset": "UTF-8", "Data": body_text},
-                    },
-                    "Subject": {"Charset": "UTF-8", "Data": subject},
-                },
-                Source=f"{SES_FROM_NAME} <{SES_FROM_EMAIL}>",
-            )
-
-            logger.info(
-                f"Email sent successfully via SES API to {email}. MessageId: {response['MessageId']}"
-            )
-            return True, ""
-
-        except ClientError as e:
-            error_msg = e.response["Error"]["Message"]
-            logger.error(f"Failed to send email via SES API to {email}: {error_msg}")
-            return False, f"Failed to send email: {error_msg}"
 
     def cleanup_expired_otps(self):
         """Clean up expired and used OTPs"""
