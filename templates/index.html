@@ -4,84 +4,157 @@
 {% block content %}
 <!-- Hero Section -->
 <div class="hero-section">
+  <div class="hero-background"></div>
+  <div class="hero-particles"></div>
   <div class="container">
-    <div class="row align-items-center min-vh-75">
-      <div class="col-lg-6 order-lg-1 order-2">
-        <div class="hero-content">
-          <div class="hero-badge mb-3">
-            <span class="badge bg-primary px-3 py-2 rounded-pill">
-              <i class="fas fa-flask me-2"></i>Genomics & Data Analytics Centre
+    <div class="row align-items-center min-vh-85">
+      <div class="col-lg-6 order-lg-1 order-1">
+        <div class="hero-content" data-aos="fade-up" data-aos-delay="200">
+          <div class="hero-badge mb-4">
+            <span class="badge bg-gradient-primary px-4 py-2 rounded-pill">
+              <i class="fas fa-dna me-2"></i>CSI - Genomics & Data Analytics Core
             </span>
           </div>
-          <h1 class="hero-title display-3 fw-bold mb-4">
+          <h1 class="hero-title display-2 fw-bold mb-4 lh-1">
             Launch Your
-            <span class="text-gradient">Data Science</span>
-            Environment
+            <span class="text-gradient d-block">Data Science</span>
+            <span class="">Environment</span>
           </h1>
-          <p class="hero-subtitle lead fs-4 mb-4 text-muted">
+          <p class="hero-subtitle fs-5 mb-4 text-white-75 lh-base">
             Access your personal RStudio or JupyterLab instance instantly.
-            Zero installation, maximum productivity.
+            <br class="d-none d-lg-block">
+            Zero installation, maximum productivity, enterprise-grade security.
           </p>
-          <div class="hero-features mb-4">
-            <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-check-circle text-success me-2"></i>
-              <span>Secure NUS email authentication</span>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-check-circle text-success me-2"></i>
-              <span>Isolated personal environments</span>
-            </div>
-            <div class="d-flex align-items-center">
-              <i class="fas fa-check-circle text-success me-2"></i>
-              <span>Access from any device</span>
+
+          <!-- How It Works Preview -->
+          <div class="hero-steps mb-5" data-aos="fade-up" data-aos-delay="400">
+            <h6 class="text-white-75 mb-3 fw-semibold">
+              <i class="fas fa-magic me-2"></i>How it works:
+            </h6>
+            <div class="steps-preview d-flex flex-wrap gap-3">
+              <div class="step-preview-item d-flex align-items-center">
+                <div class="step-preview-number">1</div>
+                <span class="step-preview-text">Enter Email</span>
+              </div>
+              <div class="step-preview-arrow">
+                <i class="fas fa-arrow-right"></i>
+              </div>
+              <div class="step-preview-item d-flex align-items-center">
+                <div class="step-preview-number">2</div>
+                <span class="step-preview-text">Verify OTP</span>
+              </div>
+              <div class="step-preview-arrow">
+                <i class="fas fa-arrow-right"></i>
+              </div>
+              <div class="step-preview-item d-flex align-items-center">
+                <div class="step-preview-number">3</div>
+                <span class="step-preview-text">Launch & Code</span>
+              </div>
             </div>
           </div>
-          <div class="hero-actions">
+
+
+          <div class="hero-actions" data-aos="fade-up" data-aos-delay="800">
             <a href="{{ url_for('login_page') }}"
-               class="btn btn-primary btn-lg px-5 py-3 me-3 shadow-sm hover-lift">
+               class="btn btn-primary btn-outline-light btn-lg px-5 py-3 me-3 btn-glow">
               <i class="fas fa-rocket me-2"></i>
               Get Started
             </a>
-            <a href="#features" class="btn btn-outline-secondary btn-lg px-4 py-3">
+            <a href="#features" class="btn btn-outline-light btn-lg px-5 py-3 btn-ghost">
+              <i class="fas fa-info-circle me-2"></i>
               Learn More
             </a>
           </div>
         </div>
       </div>
-      <div class="col-lg-6 order-lg-2 order-1 mb-4 mb-lg-0">
-        <div class="hero-logos text-center">
-          <div class="logo-container d-flex justify-content-center gap-4 mb-4">
-            <div class="logo-item">
-              <img src="{{ url_for('static', path='images/rstudio.png') }}"
-                   alt="RStudio"
-                   class="platform-logo shadow-lg">
-              <h5 class="mt-3 text-primary">RStudio</h5>
+      <div class="col-lg-6 order-lg-2 order-2 mb-5 mb-lg-0">
+        <div class="hero-visual position-relative" data-aos="fade-left" data-aos-delay="300">
+
+          <!-- Main Platform Display -->
+          <div class="platform-display-container mb-4">
+            <div class="platform-selector-header text-center mb-4">
+              <h6 class="text-white-75 mb-3 fw-semibold">
+                <i class="fas fa-desktop me-2"></i>Choose Your Environment
+              </h6>
             </div>
-            <div class="logo-divider align-self-center">
-              <span class="badge bg-light text-dark px-3 py-2 rounded-pill">OR</span>
-            </div>
-            <div class="logo-item">
-              <img src="{{ url_for('static', path='images/jupyter.png') }}"
-                   alt="Jupyter"
-                   class="platform-logo shadow-lg">
-              <h5 class="mt-3 text-warning">Jupyter</h5>
-            </div>
-          </div>
-          <div class="hero-visual">
-            <div class="floating-card">
-              <div class="card border-0 shadow-lg">
-                <div class="card-body p-4">
-                  <div class="d-flex align-items-center">
-                    <div class="status-indicator bg-success rounded-circle me-3"></div>
-                    <div>
-                      <h6 class="mb-1">Environment Ready</h6>
-                      <small class="text-muted">Click to launch your workspace</small>
+
+            <div class="platform-grid">
+              <a href="{{ url_for('login_page') }}" class="platform-option text-decoration-none" data-platform="rstudio" data-aos="zoom-in" data-aos-delay="600">
+                <div class="platform-card-enhanced">
+                  <div class="platform-badge">
+                    <span class="badge bg-info text-white">Popular</span>
+                  </div>
+                  <div class="platform-logo-wrapper">
+                    <img src="{{ url_for('static', path='images/rstudio.png') }}"
+                         alt="RStudio"
+                         class="platform-logo-enhanced">
+                  </div>
+                  <div class="platform-details">
+                    <h5 class="platform-title">RStudio</h5>
+                    <p class="platform-subtitle">Statistical Computing</p>
+                    <div class="platform-features">
+                      <span class="feature-tag">R Language</span>
+                      <span class="feature-tag">Statistics</span>
+                    </div>
+                  </div>
+                  <div class="platform-overlay">
+                    <div class="overlay-content">
+                      <i class="fas fa-play-circle fs-2 text-white mb-2"></i>
+                      <p class="text-white mb-0">Launch RStudio</p>
                     </div>
                   </div>
                 </div>
+              </a>
+
+              <div class="platform-divider">
+                <div class="divider-line"></div>
+                <div class="divider-text">
+                  <span class="badge bg-gradient-primary text-white px-2 py-1">OR</span>
+                </div>
               </div>
+
+              <a href="{{ url_for('login_page') }}" class="platform-option text-decoration-none" data-platform="jupyter" data-aos="zoom-in" data-aos-delay="700">
+                <div class="platform-card-enhanced">
+                  <div class="platform-badge">
+                    <span class="badge bg-warning text-dark">Flexible</span>
+                  </div>
+                  <div class="platform-logo-wrapper">
+                    <img src="{{ url_for('static', path='images/jupyter.png') }}"
+                         alt="Jupyter"
+                         class="platform-logo-enhanced">
+                  </div>
+                  <div class="platform-details">
+                    <h5 class="platform-title">Jupyter</h5>
+                    <p class="platform-subtitle">Interactive Computing</p>
+                    <div class="platform-features">
+                      <span class="feature-tag">Python</span>
+                      <span class="feature-tag">Notebooks</span>
+                    </div>
+                  </div>
+                  <div class="platform-overlay">
+                    <div class="overlay-content">
+                      <i class="fas fa-play-circle fs-2 text-white mb-2"></i>
+                      <p class="text-white mb-0">Launch Jupyter</p>
+                    </div>
+                  </div>
+                </div>
+              </a>
             </div>
           </div>
+
+          <!-- Status and Launch Area -->
+
+          <!-- Floating Elements for Visual Interest -->
+          <div class="floating-elements">
+            <div class="floating-icon floating-icon-1" data-aos="fade" data-aos-delay="500">
+              <i class="fab fa-r-project"></i>
+            </div>
+            <div class="floating-icon floating-icon-2" data-aos="fade" data-aos-delay="1200">
+              <i class="fab fa-python"></i>
+            </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -89,109 +162,90 @@
 </div>
 
 <!-- Features Section -->
-<section id="features" class="features-section py-5 bg-light">
+<section id="features" class="features-section py-6">
   <div class="container">
     <div class="row">
-      <div class="col-lg-8 mx-auto text-center mb-5">
-        <h2 class="display-5 fw-bold mb-3">Why Choose GeDaC Launchpad?</h2>
-        <p class="lead text-muted">
-          Streamlined data science workflows with enterprise-grade security and reliability
-        </p>
-      </div>
-    </div>
-    <div class="row g-4">
-      <div class="col-lg-3 col-md-6">
-        <div class="feature-card h-100 text-center">
-          <div class="feature-icon mb-3">
-            <i class="fas fa-bolt text-primary"></i>
-          </div>
-          <h4>Instant Access</h4>
-          <p class="text-muted">
-            Launch your environment in seconds. No downloads, no installations, no waiting.
-          </p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="feature-card h-100 text-center">
-          <div class="feature-icon mb-3">
-            <i class="fas fa-shield-alt text-success"></i>
-          </div>
-          <h4>Secure & Isolated</h4>
-          <p class="text-muted">
-            Each user gets a private, sandboxed environment with email-based OTP authentication.
-          </p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="feature-card h-100 text-center">
-          <div class="feature-icon mb-3">
-            <i class="fas fa-mobile-alt text-info"></i>
-          </div>
-          <h4>Any Device</h4>
-          <p class="text-muted">
-            Works seamlessly on desktop, laptop, tablet, or mobile. Just need a web browser.
-          </p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="feature-card h-100 text-center">
-          <div class="feature-icon mb-3">
-            <i class="fas fa-sync-alt text-warning"></i>
-          </div>
-          <h4>Always Updated</h4>
-          <p class="text-muted">
-            Latest versions of R, Python, and popular data science packages, automatically maintained.
+      <div class="col-lg-8 mx-auto text-center mb-6">
+        <div class="section-header" data-aos="fade-up">
+          <span class="section-badge badge bg-primary-soft text-primary px-3 py-2 rounded-pill mb-3">
+            <i class="fas fa-star me-2"></i>Why Choose Us
+          </span>
+          <h2 class="display-4 fw-bold mb-4 text-dark">Why Choose GeDaC Launchpad?</h2>
+          <p class="lead text-muted lh-base">
+            Streamlined data science workflows with enterprise-grade security,
+            <br class="d-none d-lg-block">
+            cutting-edge tools, and unmatched reliability for researchers
           </p>
         </div>
       </div>
     </div>
-  </div>
-</section>
 
-<!-- How It Works Section -->
-<section class="how-it-works py-5">
-  <div class="container">
-    <div class="row">
-      <div class="col-lg-8 mx-auto text-center mb-5">
-        <h2 class="display-5 fw-bold mb-3">How It Works</h2>
-        <p class="lead text-muted">Get started in three simple steps</p>
-      </div>
-    </div>
-    <div class="row g-4">
-      <div class="col-lg-4 text-center">
-        <div class="step-item">
-          <div class="step-number">1</div>
-          <div class="step-icon mb-3">
-            <i class="fas fa-envelope text-primary"></i>
+    <div class="row g-5">
+      <div class="col-lg-3 col-md-6" data-aos="fade-up" data-aos-delay="100">
+        <div class="feature-card h-100">
+          <div class="feature-card-inner">
+            <div class="feature-icon-wrapper mb-4">
+              <div class="feature-icon">
+                <i class="fas fa-bolt"></i>
+              </div>
+            </div>
+            <h4 class="feature-title mb-3">Instant Access</h4>
+            <p class="feature-desc text-muted mb-0">
+              Launch your environment in seconds. No downloads, no installations,
+              no configuration headaches. Just pure productivity.
+            </p>
           </div>
-          <h4>Enter Your Email</h4>
-          <p class="text-muted">
-            Use your NUS email address to request access to the platform.
-          </p>
         </div>
       </div>
-      <div class="col-lg-4 text-center">
-        <div class="step-item">
-          <div class="step-number">2</div>
-          <div class="step-icon mb-3">
-            <i class="fas fa-key text-success"></i>
+
+      <div class="col-lg-3 col-md-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="feature-card h-100">
+          <div class="feature-card-inner">
+            <div class="feature-icon-wrapper mb-4">
+              <div class="feature-icon feature-icon-success">
+                <i class="fas fa-shield-alt"></i>
+              </div>
+            </div>
+            <h4 class="feature-title mb-3">Secure & Isolated</h4>
+            <p class="feature-desc text-muted mb-0">
+              Each user gets a private, sandboxed environment with robust
+              email-based OTP authentication and data protection.
+            </p>
           </div>
-          <h4>Verify OTP</h4>
-          <p class="text-muted">
-            Check your email for the one-time password and enter it to authenticate.
-          </p>
         </div>
       </div>
-      <div class="col-lg-4 text-center">
-        <div class="step-item">
-          <div class="step-number">3</div>
-          <div class="step-icon mb-3">
-            <i class="fas fa-play-circle text-info"></i>
+
+      <div class="col-lg-3 col-md-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="feature-card h-100">
+          <div class="feature-card-inner">
+            <div class="feature-icon-wrapper mb-4">
+              <div class="feature-icon feature-icon-info">
+                <i class="fas fa-mobile-alt"></i>
+              </div>
+            </div>
+            <h4 class="feature-title mb-3">Any Device</h4>
+            <p class="feature-desc text-muted mb-0">
+              Works seamlessly on desktop, laptop, tablet, or mobile.
+              Full functionality with just a web browser.
+            </p>
           </div>
-          <h4>Launch & Code</h4>
-          <p class="text-muted">
-            Choose RStudio or Jupyter and start your data science work immediately.
-          </p>
+        </div>
+      </div>
+
+      <div class="col-lg-3 col-md-6" data-aos="fade-up" data-aos-delay="400">
+        <div class="feature-card h-100">
+          <div class="feature-card-inner">
+            <div class="feature-icon-wrapper mb-4">
+              <div class="feature-icon feature-icon-warning">
+                <i class="fas fa-sync-alt"></i>
+              </div>
+            </div>
+            <h4 class="feature-title mb-3">Always Updated</h4>
+            <p class="feature-desc text-muted mb-0">
+              Latest versions of R, Python, and popular data science packages,
+              automatically maintained and optimized.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -199,42 +253,153 @@
 </section>
 
 <!-- CTA Section -->
-<section class="cta-section py-5 bg-primary text-white">
-  <div class="container">
+<section class="cta-section py-6">
+  <div class="cta-background"></div>
+  <div class="container position-relative">
     <div class="row align-items-center">
-      <div class="col-lg-8">
-        <h3 class="display-6 fw-bold mb-2">Ready to start your data science journey?</h3>
-        <p class="lead mb-0">Join researchers and analysts using GeDaC Launchpad for their projects.</p>
+      <div class="col-lg-8" data-aos="fade-right">
+        <div class="cta-content">
+          <h3 class="display-5 fw-bold mb-3 text-white">
+            Ready to start your
+            <span class="text-highlight">data science journey?</span>
+          </h3>
+          <p class="lead mb-4 text-white-75 fs-5">
+            Empowering researchers and analysts with tools for breakthrough discovery and advanced analysis using GeDaC Launchpad.
+          </p>
+          <div class="cta-stats d-flex flex-wrap gap-4 mb-4">
+            <div class="stat-item text-center">
+              <div class="stat-number text-white fw-bold">Free</div>
+              <div class="stat-label text-white-50 small">For CSI Users</div>
+            </div>
+            <div class="stat-item text-center">
+              <div class="stat-number text-white fw-bold">99.9%</div>
+              <div class="stat-label text-white-50 small">Uptime</div>
+            </div>
+            <div class="stat-item text-center">
+              <div class="stat-number text-white fw-bold">24/7</div>
+              <div class="stat-label text-white-50 small">Access</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
-        <a href="{{ url_for('login_page') }}"
-           class="btn btn-light btn-lg px-5 py-3 shadow hover-lift">
-          <i class="fas fa-arrow-right me-2"></i>
-          Access Platform
-        </a>
+      <div class="col-lg-4 text-lg-end mt-4 mt-lg-0" data-aos="fade-left">
+        <div class="cta-actions">
+          <a href="{{ url_for('login_page') }}"
+             class="btn btn-light btn-lg px-5 py-4 btn-glow-white mb-3 d-block d-sm-inline-block">
+            <i class="fas fa-rocket me-2"></i>
+            Access Platform Now
+          </a>
+          <div class="cta-note text-white-50 small mt-2">
+            <i class="fas fa-shield-alt me-1"></i>
+            Secure • Free • Instant Setup
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <style>
-/* Hero Section Styles */
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  position: relative;
-  overflow: hidden;
+/* Override base template styles for full-screen hero */
+.content-wrapper {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 
-.hero-section::before {
-  content: '';
+/* Ensure the content takes full width for hero section */
+.content-wrapper.container {
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Modern CSS Custom Properties */
+:root {
+  --primary-color: #667eea;
+  --primary-dark: #5a67d8;
+  --secondary-color: #764ba2;
+  --success-color: #48bb78;
+  --info-color: #4299e1;
+  --warning-color: #ed8936;
+  --light-color: #f7fafc;
+  --dark-color: #2d3748;
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-success: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  --gradient-info: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  --gradient-warning: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  --border-radius: 12px;
+  --border-radius-lg: 20px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Utility Classes */
+.py-6 { padding-top: 4rem !important; padding-bottom: 4rem !important; }
+.mb-6 { margin-bottom: 4rem !important; }
+.text-white-75 { color: rgba(255, 255, 255, 0.75) !important; }
+.text-white-50 { color: rgba(255, 255, 255, 0.5) !important; }
+.min-vh-85 { min-height: 85vh; }
+.lh-1 { line-height: 1 !important; }
+.lh-base { line-height: 1.6 !important; }
+
+/* Background Utilities */
+.bg-primary-soft { background-color: rgba(102, 126, 234, 0.1) !important; }
+.bg-success-soft { background-color: rgba(72, 187, 120, 0.1) !important; }
+.bg-gradient-primary { background: var(--gradient-primary) !important; }
+.bg-light-gradient {
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%) !important;
+}
+
+/* Hero Section */
+.hero-section {
+  position: relative;
+  background: var(--gradient-primary);
+  color: white;
+  overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: 100px; /* Extra padding to ensure content is below navbar */
+  padding-bottom: 2rem;
+}
+
+.hero-background {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.1);
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(120, 219, 226, 0.3) 0%, transparent 50%);
   z-index: 1;
+}
+
+.hero-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.1), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.1), transparent),
+    radial-gradient(2px 2px at 160px 30px, rgba(255,255,255,0.1), transparent);
+  background-repeat: repeat;
+  background-size: 200px 100px;
+  animation: particles 20s linear infinite;
+  z-index: 1;
+}
+
+@keyframes particles {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-200px, -100px); }
 }
 
 .hero-section .container {
@@ -242,132 +407,968 @@
   z-index: 2;
 }
 
-.min-vh-75 {
-  min-height: 75vh;
+.hero-badge .badge {
+  font-size: 0.875rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .text-gradient {
-  background: linear-gradient(45deg, #ffd89b 0%, #19547b 100%);
+  background: linear-gradient(45deg, #ffd89b 0%, #cbd12730 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.hero-badge .badge {
+.text-highlight {
+  position: relative;
+  display: inline-block;
+}
+
+.text-highlight::after {
+  content: '';
+  position: absolute;
+  bottom: 0.1em;
+  left: 0;
+  width: 100%;
+  height: 0.3em;
+  background: linear-gradient(90deg, #ffd89b, #19547b);
+  z-index: -1;
+  border-radius: 2px;
+  opacity: 0.3;
+}
+
+.hero-features .feature-item {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  padding: 1rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: var(--transition);
+}
+
+.hero-features .feature-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateX(10px);
+}
+
+.hero-features .feature-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+/* Hero Steps Preview */
+.hero-steps {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.steps-preview {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.step-preview-item {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 25px;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: var(--transition);
+}
+
+.step-preview-item:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.step-preview-number {
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 700;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.step-preview-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.step-preview-arrow {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.875rem;
+  margin: 0 0.5rem;
+  animation: bounce-x 2s infinite;
+}
+
+/* Platform Showcase - Enhanced */
+.platform-display-container {
+  position: relative;
+  z-index: 2;
+  padding-top: 1.5rem;
+}
+
+.platform-selector-header h6 {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-block;
+}
+
+.platform-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.platform-option {
+  position: relative;
+  cursor: pointer;
+  transition: var(--transition);
+  z-index: 1;
+}
+
+.platform-option::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  right: -20px;
+  bottom: -20px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.platform-card-enhanced {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem 1.5rem;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: var(--transition);
+  position: relative;
+  min-width: 260px;
+  max-width: 300px;
+  min-height: 320px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.platform-option:hover .platform-card-enhanced {
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: var(--shadow-xl);
+}
+
+.platform-logo-enhanced {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 2;
+}
+
+.platform-option:hover .platform-logo-enhanced {
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.platform-badge {
+  position: absolute;
+  top: -1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.platform-badge .badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+
+.platform-logo-wrapper {
+  position: relative;
+  margin-bottom: 1.5rem;
+  margin-top: 1rem;
+  flex-shrink: 0;
+}
+
+.platform-details {
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.platform-title {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.platform-subtitle {
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.platform-features {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.feature-tag {
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+  padding: 0.3rem 0.8rem;
+  border-radius: 15px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: var(--transition);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.feature-tag:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.platform-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+  backdrop-filter: blur(10px);
+  border-radius: var(--border-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.platform-option:hover .platform-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.platform-option:hover .platform-details {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.overlay-content {
+  text-align: center;
+  transform: translateY(20px) scale(0.9);
+  transition: all 0.3s ease;
+}
+
+.platform-option:hover .overlay-content {
+  transform: translateY(0) scale(1);
+}
+
+.overlay-content i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: white;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.overlay-content p {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  margin: 0;
+}
+
+.platform-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.divider-line {
+  width: 2px;
+  height: 40px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+}
+
+.divider-text {
+  position: absolute;
+}
+
+/* Enhanced Status Area */
+.launch-status-area {
+  position: relative;
+  z-index: 2;
+}
+
+.status-card-enhanced {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.status-pulse {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-dot {
+  width: 12px;
+  height: 12px;
+  background: #48bb78;
+  border-radius: 50%;
+  position: relative;
+  animation: pulse-ring 2s infinite;
+}
+
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #48bb78;
+  border-radius: 50%;
+  opacity: 0;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 1;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.status-badge .bg-success-soft {
+  background-color: rgba(72, 187, 120, 0.1) !important;
+}
+
+.quick-stats {
+  background: rgba(248, 250, 252, 0.8);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.launch-prompt {
+  position: relative;
+  padding: 1rem 0;
+}
+
+.prompt-message {
+  color: var(--dark-color);
+  font-size: 0.95rem;
+}
+
+.launch-arrow-animated {
+  animation: bounce-y 2s infinite;
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+@keyframes bounce-y {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-8px);
+  }
+  60% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Floating Elements */
+.floating-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.floating-icon {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  animation: float-gentle 4s ease-in-out infinite;
+  transition: all 0.3s ease;
+}
+
+.floating-icon:hover {
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.floating-icon-1 {
+  top: 8%;
+  left: 8%;
+  animation-delay: 0s;
+}
+
+.floating-icon-2 {
+  top: 8%;
+  right: 8%;
+  animation-delay: 1s;
+}
+
+.floating-icon-3 {
+  bottom: 8%;
+  left: 8%;
+  animation-delay: 2s;
+}
+
+.floating-icon-4 {
+  bottom: 8%;
+  right: 8%;
+  animation-delay: 1.5s;
+}
+
+.floating-icon-6 {
+  top: 45%;
+  right: 1%;
+  animation-delay: 2.5s;
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-20px) rotate(8deg) scale(1.05);
+    opacity: 1;
+  }
 }
 
 .platform-logo {
-  width: 120px;
-  height: 120px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
-  border-radius: 20px;
-  background: white;
-  padding: 20px;
-  transition: transform 0.3s ease;
+  margin-bottom: 1rem;
+  transition: var(--transition);
 }
 
-.platform-logo:hover {
-  transform: translateY(-10px);
+.platform-card:hover .platform-logo {
+  transform: scale(1.1);
 }
 
-.logo-divider {
-  margin: 0 20px;
+.platform-name {
+  font-weight: 700;
+  color: var(--dark-color);
+  margin-bottom: 0.5rem;
 }
 
-.floating-card {
-  animation: float 3s ease-in-out infinite;
+.platform-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.platform-connector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.connector-line {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+  position: relative;
+}
+
+.connector-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.connector-badge .badge {
+  box-shadow: var(--shadow-md);
+  font-weight: 600;
+}
+
+.status-card {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.status-card .card {
+  border-radius: var(--border-radius-lg);
+  backdrop-filter: blur(10px);
+  animation: float 4s ease-in-out infinite;
+}
+
+.status-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  box-shadow: 0 0 0 4px rgba(72, 187, 120, 0.3);
+}
+
+.launch-arrow {
+  font-size: 1.2rem;
+  animation: bounce-x 2s infinite;
 }
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-}
-
-.status-indicator {
-  width: 12px;
-  height: 12px;
-  animation: pulse 2s infinite;
+  50% { transform: translateY(-15px); }
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% { opacity: 1; box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7); }
+  70% { opacity: 0.7; box-shadow: 0 0 0 10px rgba(72, 187, 120, 0); }
+  100% { opacity: 1; box-shadow: 0 0 0 0 rgba(72, 187, 120, 0); }
+}
+
+@keyframes bounce-x {
+  0%, 20%, 50%, 80%, 100% { transform: translateX(0); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(3px); }
+}
+
+/* Buttons */
+.btn-glow {
+  background: var(--gradient-primary);
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: var(--transition);
+}
+
+.btn-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.btn-ghost {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  color: white !important;
+  transition: var(--transition);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: white !important;
+  transform: translateY(-2px);
 }
 
 /* Feature Cards */
+.features-section {
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  position: relative; /* Ensure proper stacking */
+  z-index: 3; /* Above hero section */
+}
+
+.section-header .section-badge {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
 .feature-card {
   background: white;
-  padding: 2rem;
-  border-radius: 15px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
   border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: var(--transition);
+  overflow: hidden;
+  position: relative;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: var(--transition);
+}
+
+.feature-card:hover::before {
+  transform: scaleX(1);
 }
 
 .feature-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
 }
 
-.feature-icon i {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+.feature-card-inner {
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.feature-icon-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.feature-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--gradient-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: white;
+  transition: var(--transition);
+}
+
+.feature-icon-success { background: var(--gradient-success); }
+.feature-icon-info { background: var(--gradient-info); }
+.feature-icon-warning { background: var(--gradient-warning); }
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.feature-title {
+  font-weight: 700;
+  color: var(--dark-color);
+  font-size: 1.5rem;
+}
+
+.feature-desc {
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 /* Steps Section */
-.step-item {
+.progress-line {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-color), var(--success-color), var(--info-color));
+  z-index: 1;
+}
+
+.step-card {
   position: relative;
-  padding-top: 2rem;
+  z-index: 2;
+  background: white;
+  border-radius: var(--border-radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: var(--transition);
+}
+
+.step-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-xl);
+}
+
+.step-number-wrapper {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .step-number {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(45deg, #667eea, #764ba2);
+  width: 60px;
+  height: 60px;
+  background: var(--gradient-primary);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+  box-shadow: var(--shadow-lg);
 }
 
-.step-icon i {
-  font-size: 2.5rem;
+.step-icon-wrapper {
+  display: flex;
+  justify-content: center;
 }
 
-/* Hover Effects */
-.hover-lift {
-  transition: all 0.3s ease;
+.step-icon {
+  width: 70px;
+  height: 70px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: var(--primary-color);
+  transition: var(--transition);
 }
 
-.hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+.step-icon-success {
+  background: rgba(72, 187, 120, 0.1);
+  color: var(--success-color);
 }
 
-/* Responsive adjustments */
+.step-icon-info {
+  background: rgba(66, 153, 225, 0.1);
+  color: var(--info-color);
+}
+
+.step-card:hover .step-icon {
+  transform: scale(1.1);
+}
+
+.step-title {
+  font-weight: 700;
+  color: var(--dark-color);
+  font-size: 1.5rem;
+}
+
+.step-desc {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* CTA Section */
+.cta-section {
+  position: relative;
+  background: var(--gradient-primary);
+  color: white;
+  overflow: hidden;
+  z-index: 20 !important;
+}
+
+.cta-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(120, 219, 226, 0.3) 0%, transparent 50%);
+  z-index: 1;
+}
+
+.cta-section .container {
+  position: relative;
+  z-index: 2;
+}
+
+.cta-stats {
+  margin-top: 2rem;
+}
+
+.stat-item {
+  min-width: 80px;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-glow-white {
+  background: white;
+  color: var(--primary-color) !important;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3);
+  transition: var(--transition);
+}
+
+.btn-glow-white:hover {
+  background: #f8fafc;
+  color: var(--primary-dark) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 255, 255, 0.4);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .platforms-showcase {
+    gap: 1.5rem;
+  }
+
+  .platform-card {
+    min-width: 160px;
+    padding: 1.5rem 1rem;
+  }
+
+  .hero-section {
+    margin-top: -120px; /* Adjust for smaller navbar on mobile */
+    padding-top: 140px;
+  }
+
+  .hero-steps {
+    padding: 1rem;
+  }
+
+  .steps-preview {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .step-preview-arrow {
+    transform: rotate(90deg);
+    margin: 0.25rem 0;
+  }
+
+  .step-preview-item {
+    justify-content: center;
+  }
+}
+
 @media (max-width: 768px) {
   .hero-title {
-    font-size: 2.5rem;
+    font-size: 2.5rem !important;
   }
 
-  .platform-logo {
-    width: 80px;
-    height: 80px;
-    padding: 15px;
+  .platforms-showcase {
+    flex-direction: column;
+    gap: 1rem;
   }
 
-  .logo-divider {
-    margin: 0 10px;
+  .platform-connector {
+    transform: rotate(90deg);
+    margin: 1rem 0;
+  }
+
+  .connector-line {
+    width: 40px;
+  }
+
+  .progress-line {
+    display: none !important;
+  }
+
+  .step-card {
+    margin-bottom: 2rem;
   }
 
   .hero-actions .btn {
@@ -375,6 +1376,167 @@
     width: 100%;
     margin-bottom: 1rem;
   }
+
+  .cta-stats {
+    justify-content: center;
+  }
+
+  .feature-card-inner {
+    padding: 2rem 1.5rem;
+  }
+
+  .hero-section {
+    margin-top: -100px; /* Further adjust for mobile navbar */
+    padding-top: 120px;
+  }
+
+  /* Enhanced Platform Showcase Mobile */
+  .platform-grid {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .platform-divider {
+    margin: 0.5rem 0;
+  }
+
+  .divider-line {
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  }
+
+  .platform-card-enhanced {
+    min-width: 280px;
+    max-width: 320px;
+    padding: 1.5rem;
+  }
+
+  .platform-logo-enhanced {
+    width: 60px;
+    height: 60px;
+  }
+
+  .platform-title {
+    font-size: 1.1rem;
+  }
+
+  .status-card-enhanced {
+    padding: 1.5rem;
+  }
+
+  .quick-stats {
+    padding: 0.75rem;
+  }
+
+  .floating-elements {
+    display: none; /* Hide floating elements on mobile */
+  }
+}
+
+@media (max-width: 576px) {
+  .py-6 {
+    padding-top: 3rem !important;
+    padding-bottom: 3rem !important;
+  }
+
+  .hero-title {
+    font-size: 2rem !important;
+  }
+
+  .display-4 {
+    font-size: 2.5rem !important;
+  }
+
+  .platform-logo {
+    width: 60px;
+    height: 60px;
+  }
+
+  .feature-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+
+  .step-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+}
+
+/* Animation on Scroll (AOS) alternatives */
+@media (prefers-reduced-motion: no-preference) {
+  [data-aos] {
+    opacity: 0;
+    transition: var(--transition);
+  }
+
+  [data-aos].aos-animate {
+    opacity: 1;
+  }
+
+  [data-aos="fade-up"] {
+    transform: translateY(30px);
+  }
+
+  [data-aos="fade-up"].aos-animate {
+    transform: translateY(0);
+  }
+
+  [data-aos="fade-left"] {
+    transform: translateX(30px);
+  }
+
+  [data-aos="fade-left"].aos-animate {
+    transform: translateX(0);
+  }
+
+  [data-aos="fade-right"] {
+    transform: translateX(-30px);
+  }
+
+  [data-aos="fade-right"].aos-animate {
+    transform: translateX(0);
+  }
+
+  [data-aos="zoom-in"] {
+    transform: scale(0.8);
+  }
+
+  [data-aos="zoom-in"].aos-animate {
+    transform: scale(1);
+  }
 }
 </style>
+
+<!-- AOS (Animate On Scroll) Library -->
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+  // Initialize AOS
+  document.addEventListener('DOMContentLoaded', function() {
+    AOS.init({
+      duration: 800,
+      easing: 'ease-out-cubic',
+      once: true,
+      offset: 100
+    });
+  });
+
+  // Smooth scrolling for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    });
+  });
+</script>
 {% endblock %}
