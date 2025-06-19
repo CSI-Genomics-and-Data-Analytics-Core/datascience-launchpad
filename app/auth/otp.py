@@ -1,7 +1,7 @@
 import secrets
 import logging
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -41,7 +41,7 @@ class OTPService:
         db = get_db()
         try:
             # Check rate limiting - max requests per hour
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
             recent_requests = db.execute(
                 "SELECT COUNT(*) as count FROM otp_tokens WHERE email = ? AND created_at > ?",
                 (email, one_hour_ago),
@@ -53,12 +53,13 @@ class OTPService:
             # Check if there's an active OTP that's not expired
             active_otp = db.execute(
                 "SELECT * FROM otp_tokens WHERE email = ? AND expires_at > ? AND used = FALSE ORDER BY created_at DESC LIMIT 1",
-                (email, datetime.utcnow()),
+                (email, datetime.now(timezone.utc)),
             ).fetchone()
 
             if active_otp:
                 remaining_time = (
-                    datetime.fromisoformat(active_otp["expires_at"]) - datetime.utcnow()
+                    datetime.fromisoformat(active_otp["expires_at"])
+                    - datetime.now(timezone.utc)
                 ).total_seconds()
                 if remaining_time > 60:  # More than 1 minute remaining
                     return (
@@ -77,7 +78,9 @@ class OTPService:
             return False, message
 
         otp_code = self.generate_otp()
-        expires_at = datetime.utcnow() + timedelta(minutes=OTP_VALIDITY_MINUTES)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            minutes=OTP_VALIDITY_MINUTES
+        )
 
         db = get_db()
         try:
@@ -121,14 +124,14 @@ class OTPService:
             # Get active OTP
             otp_record = db.execute(
                 "SELECT * FROM otp_tokens WHERE email = ? AND token = ? AND used = FALSE AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
-                (email, otp_code, datetime.utcnow()),
+                (email, otp_code, datetime.now(timezone.utc)),
             ).fetchone()
 
             if not otp_record:
                 # Check if there's any OTP for this email to increment attempts
                 any_otp = db.execute(
                     "SELECT * FROM otp_tokens WHERE email = ? AND used = FALSE AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
-                    (email, datetime.utcnow()),
+                    (email, datetime.now(timezone.utc)),
                 ).fetchone()
 
                 if any_otp:
@@ -301,7 +304,7 @@ GeDaC Launchpad Team
         db = get_db()
         try:
             # Delete OTPs older than 24 hours
-            cutoff_time = datetime.utcnow() - timedelta(hours=24)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             result = db.execute(
                 "DELETE FROM otp_tokens WHERE created_at < ?", (cutoff_time,)
             )

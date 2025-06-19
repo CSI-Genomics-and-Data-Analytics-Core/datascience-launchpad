@@ -3,7 +3,7 @@ import logging
 import secrets
 import subprocess
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Form, status, Depends
@@ -125,7 +125,7 @@ async def request_otp_action(request: Request, email: str = Form(...)):
             # Create user account with default lab
             cursor.execute(
                 "INSERT INTO users (email, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?)",
-                (email, is_admin_val, datetime.utcnow(), "General"),
+                (email, is_admin_val, datetime.now(timezone.utc), "General"),
             )
             db.commit()
             logger.info(f"Auto-registered new user: {email}")
@@ -191,7 +191,7 @@ async def verify_otp_action(
         db = get_db()
         db.execute(
             "UPDATE users SET last_login = ? WHERE email = ?",
-            (datetime.utcnow(), email),
+            (datetime.now(timezone.utc), email),
         )
         db.commit()
         db.close()
@@ -834,7 +834,7 @@ async def stop_instance_action(
         # Step 2: Update database record
         try:
             cursor = db.cursor()
-            current_time_utc = datetime.utcnow()
+            current_time_utc = datetime.now(timezone.utc)
 
             if docker_stopped_or_not_found:
                 db_status_to_set = "stopped"

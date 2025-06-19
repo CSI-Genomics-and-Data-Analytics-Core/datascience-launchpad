@@ -1,7 +1,7 @@
 # filepath: /Users/mani/work/rstudio-portal/app/db/database.py
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.config import (
     DATABASE_PATH,
     INITIAL_ADMIN_USERNAME,
@@ -88,7 +88,7 @@ def init_db():
     if not cursor.fetchone():
         cursor.execute(
             "INSERT INTO users (email, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?)",
-            (admin_email, True, datetime.utcnow(), "AdminLab"),
+            (admin_email, True, datetime.now(timezone.utc), "AdminLab"),
         )
         logger.info(f"Admin user {admin_email} created.")
     conn.commit()

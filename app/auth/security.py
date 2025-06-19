@@ -1,6 +1,6 @@
 # filepath: /Users/mani/work/rstudio-portal/app/auth/security.py
 from fastapi import Request, HTTPException, status, Depends
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.db.database import get_db
 from app.core.config import DEFAULT_SESSION_HOURS, REMEMBER_ME_SESSION_DAYS
 
@@ -19,7 +19,10 @@ def get_current_user(request: Request):
         if session_expires:
             try:
                 expires_dt = datetime.fromisoformat(session_expires)
-                if datetime.utcnow() > expires_dt:
+                # Make expires_dt timezone-aware if it's naive
+                if expires_dt.tzinfo is None:
+                    expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expires_dt:
                     return None  # Session expired
             except ValueError:
                 return None  # Invalid date format
@@ -42,9 +45,11 @@ def get_current_active_user(current_user: dict = Depends(get_current_user)):
 def create_user_session(email: str, remember_me: bool = False) -> dict:
     """Create session data for authenticated user"""
     if remember_me:
-        expires_at = datetime.utcnow() + timedelta(days=REMEMBER_ME_SESSION_DAYS)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=REMEMBER_ME_SESSION_DAYS
+        )
     else:
-        expires_at = datetime.utcnow() + timedelta(hours=DEFAULT_SESSION_HOURS)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=DEFAULT_SESSION_HOURS)
 
     return {"email": email, "expires_at": expires_at, "remember_me": remember_me}
 
