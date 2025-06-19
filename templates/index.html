@@ -10,7 +10,7 @@
     <div class="row align-items-center min-vh-85">
       <div class="col-lg-6 order-lg-1 order-1">
         <div class="hero-content" data-aos="fade-up" data-aos-delay="200">
-          <div class="hero-badge mb-4">
+          <div class="hero-badge mb-3">
             <span class="badge bg-gradient-primary px-4 py-2 rounded-pill">
               <i class="fas fa-dna me-2"></i>CSI - Genomics & Data Analytics Core
             </span>
@@ -405,6 +405,22 @@
 .hero-section .container {
   position: relative;
   z-index: 2;
+  max-width: 1400px !important; /* Increased from default Bootstrap container */
+}
+
+/* Increase container width for all main sections */
+.container {
+  max-width: 1400px !important;
+}
+
+/* Ensure features section also uses wider container */
+.features-section .container {
+  max-width: 1400px !important;
+}
+
+/* CTA section wider container */
+.cta-section .container {
+  max-width: 1400px !important;
 }
 
 .hero-badge .badge {
