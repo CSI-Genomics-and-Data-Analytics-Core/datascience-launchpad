@@ -311,18 +311,18 @@ async def request_rstudio_instance(
 
     if existing_instance_row:
         db.close()
-        message = "You already have an active RStudio session or one is being prepared."
+        message = "You already have an active session or one is being prepared."
         if existing_instance_row["status"] == "requested":
             # E501: Line shortened
             message = (
-                "An RStudio instance is currently being set up for you. "
+                "An instance is currently being set up for you. "
                 "Please check the dashboard again shortly."
             )
         elif existing_instance_row["status"] == "running":
             # E501: Line shortened
             message = (
-                "You already have a running RStudio instance. "
-                "Access it from the dashboard."
+                "You already have a running instance. "
+                "Please stop the current one before launching a new one."
             )
 
         encoded_message = quote(message)  # URL encode the message
