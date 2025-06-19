@@ -91,7 +91,7 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-access-key-id
 AWS_SECRET_ACCESS_KEY=your-secret-access-key
 SES_FROM_EMAIL=noreply@yourdomain.com
-SES_FROM_NAME=RStudio Portal
+SES_FROM_NAME=GeDaC LaunchPad
 
 # Admin Configuration
 INITIAL_ADMIN_USERNAME=admin@nus.edu.sg

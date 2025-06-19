@@ -33,7 +33,7 @@ endblock %} {% block content %}
         {% for instance in instances %}
         <tr>
           <td>{{ instance.id }}</td>
-          <td>{{ instance.owner_username }}</td>
+          <td>{{ instance.owner_email }}</td>
           <td>{{ instance.container_name }}</td>
           <td>{{ instance.port }}</td>
           <td>
@@ -86,7 +86,7 @@ endblock %} {% block content %}
                         </div>
                         <div class="card-body">
                           <p><strong>URL:</strong> <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank">http://{{ request.url.hostname }}:{{ instance.port }}</a></p>
-                          <p><strong>Username:</strong> {% if '@' in instance.owner_username %}{{ instance.owner_username.split('@')[0] }}{% else %}{{ instance.owner_username }}{% endif %}</p>
+                          <p><strong>Username:</strong> {% if '@' in instance.owner_email %}{{ instance.owner_email.split('@')[0] }}{% else %}{{ instance.owner_email }}{% endif %}</p>
                           <p><strong>Password:</strong> {% if instance.password %}{{ instance.password }}{% else %}<em>Not available</em>{% endif %}</p>
                           <hr>
                           <p><strong>Resources:</strong></p>
@@ -150,7 +150,7 @@ endblock %} {% block content %}
       <thead>
         <tr>
           <th>ID</th>
-          <th>Username</th>
+          <th>Email</th>
           <th>Lab Name</th>
           {# New Column #}
           <th>Is Admin</th>
@@ -162,7 +162,7 @@ endblock %} {% block content %}
         avoid conflict with global user #}
         <tr>
           <td>{{ user_item.id }}</td>
-          <td>{{ user_item.username }}</td>
+          <td>{{ user_item.email }}</td>
           <td>{{ user_item.lab_name }}</td>
           {# Display Lab Name #}
           <td>

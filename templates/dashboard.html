@@ -1,8 +1,8 @@
-{% extends "base.html" %} {% block title %}Dashboard - {{ user.username }}{%
+{% extends "base.html" %} {% block title %}Dashboard - {{ user.email }}{%
 endblock %} {% block content %}
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Welcome, {{ user.username }}!</h2>
+    <h2>Welcome, {{  user.email }}!</h2>
     {% if user.is_admin %}
     <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary"
       >Admin Dashboard</a
@@ -14,7 +14,10 @@ endblock %} {% block content %}
     <div class="col-md-6">
       <div class="card mb-4">
         <div class="card-body">
-          <h5 class="card-title">Request New RStudio Session</h5>
+          <div class="d-flex align-items-center mb-3">
+            <img src="{{ url_for('static', path='images/rstudio.png') }}" alt="RStudio Logo" class="me-3" style="width: 48px; height: 48px;">
+            <h5 class="card-title mb-0">Request New RStudio Session</h5>
+          </div>
           <p class="card-text">
             CPU: {{ cpu_limit }}, Memory: {{ memory_limit }}, Storage:
             {{ storage_limit }}
@@ -35,7 +38,10 @@ endblock %} {% block content %}
     <div class="col-md-6">
       <div class="card mb-4">
         <div class="card-body">
-          <h5 class="card-title">Request New JupyterLab Session</h5>
+          <div class="d-flex align-items-center mb-3">
+            <img src="{{ url_for('static', path='images/jupyter.png') }}" alt="Jupyter Logo" class="me-3" style="width: 48px; height: 48px;">
+            <h5 class="card-title mb-0">Request New JupyterLab Session</h5>
+          </div>
           <p class="card-text">
             CPU: {{ jupyter_cpu_limit }}, Memory: {{ jupyter_memory_limit }},
             Storage: {{ storage_limit }}
@@ -164,7 +170,7 @@ endblock %} {% block content %}
                         </div>
                         <div class="mb-3">
                             <label for="rstudio-username-{{ instance.id }}" class="form-label"><strong>Username:</strong></label>
-                            <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="{% if '@' in user.username %}{{ user.username.split('@')[0] }}{% else %}{{ user.username }}{% endif %}">
+                            <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="{% if '@' in user.email %}{{ user.email.split('@')[0] }}{% else %}{{ user.email }}{% endif %}">
                         </div>
                         <div class="mb-3">
                             <label for="rstudio-password-{{ instance.id }}" class="form-label"><strong>Password:</strong></label>

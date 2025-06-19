@@ -1026,21 +1026,23 @@ async def admin_dashboard(
             "SELECT id, email, is_admin, created_at, lab_name FROM users ORDER BY id"
         ).fetchall()
 
-        # Get all instances with ordered status
+        # Get all instances with user information and ordered status
         instances_data = db.execute(
             """
-            SELECT id, user_id, container_name, container_id, port, password,
-                   created_at, expires_at, status, stopped_at, instance_type
-            FROM user_instances
+            SELECT ui.id, ui.user_id, ui.container_name, ui.container_id, ui.port, ui.password,
+                   ui.created_at, ui.expires_at, ui.status, ui.stopped_at, ui.instance_type,
+                   u.email as owner_email
+            FROM user_instances ui
+            JOIN users u ON ui.user_id = u.id
             ORDER BY
-                CASE status
+                CASE ui.status
                     WHEN 'running' THEN 1
                     WHEN 'requested' THEN 2
                     WHEN 'stopped' THEN 3
                     WHEN 'error' THEN 4
                     ELSE 5
                 END,
-                created_at DESC
+                ui.created_at DESC
         """
         ).fetchall()
 
