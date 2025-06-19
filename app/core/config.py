@@ -102,6 +102,6 @@ SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "GeDaC Launchpad")
 
 # SMTP Server Configuration
 EMAIL_HOST = os.getenv("EMAIL_HOST", "email-smtp.ap-southeast-1.amazonaws.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "465"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "True").lower() == "true"
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() == "true"

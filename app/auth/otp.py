@@ -237,19 +237,52 @@ GeDaC Launchpad Team
             msg.attach(text_part)
             msg.attach(html_part)
 
-            # Send email via SMTP
-            if EMAIL_USE_SSL:
-                # Use SSL connection (typically port 465)
-                with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
-                    server.login(SMTP_USER, SMTP_PASSWORD)
-                    server.send_message(msg)
-            else:
-                # Use regular SMTP with optional TLS (typically port 587)
-                with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
-                    if EMAIL_USE_TLS:
-                        server.starttls()
-                    server.login(SMTP_USER, SMTP_PASSWORD)
-                    server.send_message(msg)
+            # Send email via SMTP with improved error handling
+            try:
+                if EMAIL_USE_SSL:
+                    # Use SSL connection (typically port 465)
+                    logger.info(f"Connecting to {EMAIL_HOST}:{EMAIL_PORT} using SSL")
+                    with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
+                        server.login(SMTP_USER, SMTP_PASSWORD)
+                        server.send_message(msg)
+                else:
+                    # Use regular SMTP with optional TLS (typically port 587)
+                    logger.info(
+                        f"Connecting to {EMAIL_HOST}:{EMAIL_PORT} using TLS={EMAIL_USE_TLS}"
+                    )
+                    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+                        if EMAIL_USE_TLS:
+                            server.starttls()
+                        server.login(SMTP_USER, SMTP_PASSWORD)
+                        server.send_message(msg)
+            except smtplib.SMTPConnectError as e:
+                logger.error(
+                    f"SMTP connection failed to {EMAIL_HOST}:{EMAIL_PORT}: {str(e)}"
+                )
+                return False, f"Failed to connect to email server: {str(e)}"
+            except smtplib.SMTPAuthenticationError as e:
+                logger.error(f"SMTP authentication failed: {str(e)}")
+                return False, f"Email authentication failed: {str(e)}"
+            except Exception as e:
+                logger.error(f"SMTP connection error: {str(e)}")
+                # Try alternative configuration if SSL fails
+                if EMAIL_USE_SSL and "SSL" in str(e):
+                    logger.info("SSL failed, trying TLS on port 587")
+                    try:
+                        with smtplib.SMTP(
+                            EMAIL_HOST.replace("email-smtp", "email-smtp"), 587
+                        ) as server:
+                            server.starttls()
+                            server.login(SMTP_USER, SMTP_PASSWORD)
+                            server.send_message(msg)
+                    except Exception as fallback_e:
+                        logger.error(f"Fallback TLS also failed: {str(fallback_e)}")
+                        return (
+                            False,
+                            f"Failed to send email (tried SSL and TLS): {str(e)}",
+                        )
+                else:
+                    return False, f"Failed to send email: {str(e)}"
 
             logger.info(f"Email sent successfully via SMTP to {email}")
             return True, ""
