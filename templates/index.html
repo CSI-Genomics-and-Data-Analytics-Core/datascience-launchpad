@@ -20,10 +20,16 @@
             <span class="text-gradient d-block">Data Science</span>
             <span class="text-white">Environment</span>
           </h1>
-          <p class="hero-subtitle fs-5 mb-4 text-white-75 lh-base">
-            Access your personal RStudio or JupyterLab instance instantly.
+          <p class="hero-subtitle fs-5 mb-4 text-white-75 lh-base" data-aos="fade-up" data-aos-delay="300">
+            <span class="d-inline-block mb-2">
+              Access your <span class="badge bg-warning text-dark px-3 py-2 fs-5 fw-bold">Free</span> personal RStudio or JupyterLab instance <span class="badge bg-info text-gradient-accent fs-5">instantly</span>.
+            </span>
             <br class="d-none d-lg-block">
-            Zero installation, maximum productivity, enterprise-grade security.
+            <span class="d-inline-block">
+              <i class="fas fa-shield-alt me-1 opacity-75"></i> Zero installation,
+              <i class="fas fa-bolt me-1 ms-1 opacity-75"></i> maximum productivity,
+              <i class="fas fa-university me-1 ms-1 opacity-75"></i> NUS-grade security.
+            </span>
           </p>
 
           <!-- How It Works Preview -->
@@ -171,11 +177,11 @@
             <i class="fas fa-star me-2"></i>Why Choose Us
           </span>
           <h2 class="display-4 fw-bold mb-4 text-dark">Why Choose GeDaC Launchpad?</h2>
-          <p class="lead text-muted lh-base">
-            Streamlined data science workflows with enterprise-grade security,
+            <p class="lead text-muted lh-base">
+            Simplified data science workflows with
             <br class="d-none d-lg-block">
-            cutting-edge tools, and unmatched reliability for researchers
-          </p>
+            accessible tools and reliable infrastructure for researchers
+            </p>
         </div>
       </div>
     </div>
@@ -261,7 +267,7 @@
         <div class="cta-content">
           <h3 class="display-5 fw-bold mb-3 text-white">
             Ready to start your
-            <span class="text-highlight">data science journey?</span>
+            <p >Data science journey?</p>
           </h3>
           <p class="lead mb-4 text-white-75 fs-5">
             Empowering researchers and analysts with tools for breakthrough discovery and advanced analysis using GeDaC Launchpad.
@@ -272,7 +278,7 @@
               <div class="stat-label text-white-50 small">For CSI Users</div>
             </div>
             <div class="stat-item text-center">
-              <div class="stat-number text-white fw-bold">99.9%</div>
+              <div class="stat-number text-white fw-bold">99%</div>
               <div class="stat-label text-white-50 small">Uptime</div>
             </div>
             <div class="stat-item text-center">
@@ -611,14 +617,13 @@
   transition: all 0.3s ease;
   border-radius: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.5);
   position: relative;
   z-index: 2;
 }
 
 .platform-option:hover .platform-logo-enhanced {
-  transform: scale(1.05);
-  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.50);
 }
 
 .platform-badge {
@@ -902,8 +907,8 @@
 
 .floating-icon {
   position: absolute;
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
   border-radius: 50%;
