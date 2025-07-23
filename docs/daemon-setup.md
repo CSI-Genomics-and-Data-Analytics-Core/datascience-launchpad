@@ -15,7 +15,7 @@ The daemon uses systemd to run cleanup tasks at regular intervals. It consists o
 
 ## Features
 
-- **Automatic cleanup**: Runs every 5 minutes by default
+- **Automatic cleanup**: Runs every 1 hour by default
 - **Database integration**: Updates instance status in SQLite database
 - **Docker management**: Stops and removes expired containers
 - **Comprehensive logging**: Detailed logs for monitoring and debugging
@@ -118,7 +118,7 @@ To change the cleanup interval, edit `/etc/systemd/system/rstudio-cleanup.timer`
 ```ini
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=10min  # Change this line (e.g., 10min, 1h, 30s)
+OnUnitActiveSec=1h  # Change this line (e.g., 10min, 1h, 30s)
 Unit=rstudio-cleanup.service
 ```
 

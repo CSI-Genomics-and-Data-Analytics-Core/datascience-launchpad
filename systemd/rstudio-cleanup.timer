@@ -4,7 +4,7 @@ Requires=rstudio-cleanup.service
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=5min
+OnUnitActiveSec=1h
 Unit=rstudio-cleanup.service
 
 [Install]
