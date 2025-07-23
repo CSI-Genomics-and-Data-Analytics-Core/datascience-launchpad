@@ -28,6 +28,8 @@ LAB_NAMES = [
     "Yang ZHANG",
     "Yvonne TAY",
     "GeDaC",
+    "Spatial Biology Core",
+    "Other",
 ]
 
 # --- Base Directories and Paths ---
@@ -72,10 +74,12 @@ JUPYTER_DOCKER_IMAGE = os.getenv(
 JUPYTER_MIN_PORT = int(os.getenv("JUPYTER_MIN_PORT", "9051"))
 JUPYTER_MAX_PORT = int(os.getenv("JUPYTER_MAX_PORT", "9100"))
 JUPYTER_DEFAULT_MEMORY = os.getenv("JUPYTER_DEFAULT_MEMORY", "16g")
-JUPYTER_DEFAULT_CPUS = os.getenv("JUPYTER_DEFAULT_CPUS", "2")
+JUPYTER_DEFAULT_CPUS = os.getenv("JUPYTER_DEFAULT_CPUS", "2.0")
 JUPYTER_SESSION_EXPIRY_DAYS = int(os.getenv("JUPYTER_SESSION_EXPIRY_DAYS", "7"))
 
 # --- Application Configuration ---
+MAX_CONCURRENT_SESSIONS = int(os.getenv("MAX_CONCURRENT_SESSIONS", "20"))
+DEFAULT_SESSION_DAYS = int(os.getenv("DEFAULT_SESSION_DAYS", "2"))
 INITIAL_ADMIN_USERNAME = os.getenv("INITIAL_ADMIN_USERNAME", "admin")
 INITIAL_ADMIN_PASSWORD = os.getenv(
     "INITIAL_ADMIN_PASSWORD", "adminpass"

@@ -1,187 +1,597 @@
 {% extends "base.html" %} {% block title %}Admin Dashboard - {{ super() }}{%
 endblock %} {% block content %}
-<div class="container mt-4">
-  <h1 class="mb-4">Admin Dashboard</h1>
+<div class="container-fluid mt-4">
+  <!-- Header Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h1 class="mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Admin Dashboard</h1>
+          <p class="text-muted mb-0">Manage users and system resources</p>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
+          <a href="/dashboard" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   {% if message %}
-  <div class="alert alert-success" role="alert">{{ message }}</div>
-  {% endif %} {% if error %}
-  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-2"></i>{{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
   {% endif %}
 
-  <!-- All RStudio Instances Table -->
-  <h2 class="mt-5">All RStudio Instances</h2>
-  {% if instances %}
-  <div class="table-responsive">
-    <table class="table table-striped table-hover">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Owner</th>
-          <th>Container Name</th>
-          <th>Port</th>
-          <th>Status</th>
-          <th>Created At</th>
-          <th>Expires At</th>
-          <th>Stopped At</th>
-          <th>Resources</th>
-          <th>Access URL</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for instance in instances %}
-        <tr>
-          <td>{{ instance.id }}</td>
-          <td>{{ instance.owner_email }}</td>
-          <td>{{ instance.container_name }}</td>
-          <td>{{ instance.port }}</td>
-          <td>
-            <span
-              class="badge {% if instance.status == 'running' %}bg-success {% elif instance.status == 'stopped' %}bg-warning text-dark {% elif instance.status == 'requested' %}bg-info text-dark {% elif instance.status == 'error' %}bg-danger {% else %}bg-secondary {% endif %}"
-            >
-              {{ instance.status }}
-            </span>
-          </td>
-          <td>
-            {{ instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if
-            instance.created_at else 'N/A' }}
-          </td>
-          <td>
-            {{ instance.expires_at.strftime('%Y-%m-%d %H:%M:%S') if
-            instance.expires_at else 'N/A' }}
-          </td>
-          <td>
-            {{ instance.stopped_at.strftime('%Y-%m-%d %H:%M:%S') if
-            instance.stopped_at else 'N/A' }}
-          </td>
-          <td>
-            <ul class="list-unstyled mb-0">
-              <li><strong>Memory:</strong> {{ memory_limit }}</li>
-              <li><strong>CPUs:</strong> {{ cpu_limit }}</li>
-              <li><strong>Storage:</strong> {{ storage_limit }}</li>
-            </ul>
-          </td>
-          <td>
-            {% if instance.status == 'running' %}
-              <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank" class="btn btn-primary btn-sm">
-                Access RStudio
-              </a>
-              <button type="button" class="btn btn-outline-info btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
-                <i class="bi bi-key"></i> Credentials
-              </button>
+  {% if error %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
 
-              <!-- Modal for credentials -->
-              <div class="modal fade" id="credentials-{{ instance.id }}" tabindex="-1" aria-labelledby="credentialsModalLabel-{{ instance.id }}" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                  <div class="modal-content">
-                    <div class="modal-header">
-                      <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">RStudio Login Credentials</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                      <div class="card">
-                        <div class="card-header bg-light">
-                          <strong>Instance ID:</strong> {{ instance.id }} ({{ instance.container_name }})
-                        </div>
-                        <div class="card-body">
-                          <p><strong>URL:</strong> <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank">http://{{ request.url.hostname }}:{{ instance.port }}</a></p>
-                          <p><strong>Username:</strong> {% if '@' in instance.owner_email %}{{ instance.owner_email.split('@')[0] }}{% else %}{{ instance.owner_email }}{% endif %}</p>
-                          <p><strong>Password:</strong> {% if instance.password %}{{ instance.password }}{% else %}<em>Not available</em>{% endif %}</p>
-                          <hr>
-                          <p><strong>Resources:</strong></p>
-                          <ul class="list-unstyled">
-                            <li><i class="bi bi-memory me-1"></i> Memory: {{ memory_limit }}</li>
-                            <li><i class="bi bi-cpu me-1"></i> CPUs: {{ cpu_limit }}</li>
-                            <li><i class="bi bi-hdd me-1"></i> Storage: {{ storage_limit }}</li>
-                          </ul>
-                          <p><small class="text-muted">Note: For email addresses, only the part before @ is used as username.</small></p>
-                        </div>
+  <!-- System Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="d-flex align-items-center justify-content-center mb-2">
+            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+              <i class="bi bi-play-circle-fill text-success fs-4"></i>
+            </div>
+          </div>
+          <h5 class="card-title">{{ instances|selectattr("status", "equalto", "running")|list|length }}</h5>
+          <p class="card-text text-muted mb-0">Running Sessions</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="d-flex align-items-center justify-content-center mb-2">
+            <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+              <i class="bi bi-stop-circle-fill text-secondary fs-4"></i>
+            </div>
+          </div>
+          <h5 class="card-title">{{ instances|selectattr("status", "equalto", "stopped")|list|length }}</h5>
+          <p class="card-text text-muted mb-0">Stopped Sessions</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="d-flex align-items-center justify-content-center mb-2">
+            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+              <i class="bi bi-people-fill text-info fs-4"></i>
+            </div>
+          </div>
+          <h5 class="card-title">{{ users|length }}</h5>
+          <p class="card-text text-muted mb-0">Total Users</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="d-flex align-items-center justify-content-center mb-2">
+            <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+              <i class="bi bi-server text-primary fs-4"></i>
+            </div>
+          </div>
+          <h5 class="card-title">{{ instances|length }}</h5>
+          <p class="card-text text-muted mb-0">Total Instances</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All Instances Table -->
+  <div class="card border-0 shadow-sm mb-5 mt-5">
+    <div class="card-header bg-white border-bottom">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h3 class="mb-1"><i class="bi bi-laptop text-primary me-2"></i>System Instances</h3>
+          <p class="text-muted mb-0">All RStudio and JupyterLab sessions across the platform</p>
+        </div>
+        <div class="d-flex gap-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="statusFilter" id="filterAll" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary" for="filterAll">All</label>
+
+            <input type="radio" class="btn-check" name="statusFilter" id="filterRunning" autocomplete="off">
+            <label class="btn btn-outline-success" for="filterRunning">Running</label>
+
+            <input type="radio" class="btn-check" name="statusFilter" id="filterStopped" autocomplete="off">
+            <label class="btn btn-outline-secondary" for="filterStopped">Stopped</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      {% if instances %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" id="instancesTable">
+          <thead class="table-light">
+            <tr>
+              <th class="border-0 ps-4">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-hash text-muted me-2"></i>ID
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-person text-muted me-2"></i>Owner
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-box text-muted me-2"></i>Container
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-ethernet text-muted me-2"></i>Port
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-circle-fill text-muted me-2"></i>Status
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-calendar text-muted me-2"></i>Created
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-clock text-muted me-2"></i>Expires
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-cpu text-muted me-2"></i>Resources
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-box-arrow-up-right text-muted me-2"></i>Access
+                </div>
+              </th>
+              <th class="border-0 text-center pe-4">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-gear text-muted me-2"></i>Actions
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for instance in instances %}
+            <tr class="instance-row" data-status="{{ instance.status }}">
+              <td class="ps-4">
+                <div class="d-flex align-items-center">
+                  <span class="badge bg-light text-dark border">#{{ instance.id }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px;">
+                    <i class="bi bi-person-fill text-primary"></i>
+                  </div>
+                  <div>
+                    <div class="fw-medium">{{ instance.owner_email.split('@')[0] if '@' in instance.owner_email else instance.owner_email }}</div>
+                    <small class="text-muted">{{ instance.owner_email }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="me-3">
+                    {% if instance.instance_type == 'rstudio' %}
+                      <div class="bg-info bg-opacity-10 rounded p-2">
+                        <i class="bi bi-r-circle-fill text-info"></i>
                       </div>
+                    {% elif instance.instance_type == 'jupyterlab' %}
+                      <div class="bg-warning bg-opacity-10 rounded p-2">
+                        <i class="bi bi-journal-code text-warning"></i>
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <div class="fw-medium">{{ instance.container_name }}</div>
+                    <small class="text-muted">{{ instance.instance_type | default('rstudio') | title }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-secondary bg-opacity-20 text-dark border">:{{ instance.port }}</span>
+              </td>
+              <td>
+                <span class="badge rounded-pill fs-6
+                  {% if instance.status == 'running' %}bg-success
+                  {% elif instance.status == 'stopped' %}bg-secondary
+                  {% elif instance.status == 'requested' %}bg-warning text-dark
+                  {% elif instance.status == 'error' %}bg-danger
+                  {% else %}bg-secondary
+                  {% endif %}">
+                  <i class="bi bi-circle-fill me-1" style="font-size: 0.5em;"></i>
+                  {{ instance.status | title }}
+                </span>
+              </td>
+              <td>
+                <div class="text-muted">
+                  {{ instance.created_at.strftime('%m/%d/%y') if instance.created_at else 'N/A' }}<br>
+                  <small>{{ instance.created_at.strftime('%H:%M') if instance.created_at else '' }}</small>
+                </div>
+              </td>
+              <td>
+                <div class="text-muted">
+                  {{ instance.expires_at.strftime('%m/%d/%y') if instance.expires_at else 'N/A' }}<br>
+                  <small>{{ instance.expires_at.strftime('%H:%M') if instance.expires_at else '' }}</small>
+                </div>
+              </td>
+              <td>
+                <div class="small">
+                  <div class="d-flex align-items-center mb-1">
+                    <i class="bi bi-memory text-primary me-2"></i>
+                    <span>{{ instance.memory_limit or 'N/A' }}</span>
+                  </div>
+                  <div class="d-flex align-items-center mb-1">
+                    <i class="bi bi-cpu text-success me-2"></i>
+                    <span>{{ instance.cpu_limit or 'N/A' }}</span>
+                  </div>
+                  <div class="d-flex align-items-center mb-1">
+                    <i class="bi bi-hdd text-info me-2"></i>
+                    <span>{{ instance.storage_limit or 'N/A' }}</span>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-calendar-week text-warning me-2"></i>
+                    <span>{{ instance.session_days or 'N/A' }}d</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                {% if instance.status == 'running' %}
+                  <div class="d-flex flex-column gap-1">
+                    {% if instance.instance_type == 'rstudio' %}
+                      <a href="http://{{ request.url.hostname }}:{{ instance.port }}" target="_blank" class="btn btn-primary btn-sm">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>RStudio
+                      </a>
+                    {% elif instance.instance_type == 'jupyterlab' %}
+                      <a href="http://{{ request.url.hostname }}:{{ instance.port }}/lab?token={{ instance.password }}" target="_blank" class="btn btn-warning btn-sm">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Jupyter
+                      </a>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
+                      <i class="bi bi-key me-1"></i>Credentials
+                    </button>
+                  </div>
+                {% else %}
+                  <span class="text-muted small">Not accessible</span>
+                {% endif %}
+              </td>
+              <td class="text-center pe-4">
+                <div class="btn-group btn-group-sm">
+                  {% if instance.status == 'running' or instance.status == 'requested' or instance.status == 'error' %}
+                  <form method="post" action="{{ url_for('stop_instance_action', instance_id=instance.id) }}" style="display: inline">
+                    <button type="submit" class="btn btn-outline-warning btn-sm" title="Stop Instance">
+                      <i class="bi bi-stop-circle"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+
+                  {% if instance.status == 'stopped' or instance.status == 'error' %}
+                  <form method="post" action="{{ url_for('delete_instance', instance_id=instance.id) }}" style="display: inline"
+                        onsubmit="return confirm('Are you sure you want to delete this instance? This action cannot be undone.');">
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Instance">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <div class="mb-3">
+          <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+        </div>
+        <h5 class="text-muted">No instances found</h5>
+        <p class="text-muted mb-0">No instances have been created yet.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Credentials Modals -->
+  {% for instance in instances %}
+  {% if instance.status == 'running' %}
+  <div class="modal fade" id="credentials-{{ instance.id }}" tabindex="-1" aria-labelledby="credentialsModalLabel-{{ instance.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title" id="credentialsModalLabel-{{ instance.id }}">
+            <i class="bi bi-key text-primary me-2"></i>
+            {% if instance.instance_type == 'rstudio' %}RStudio{% else %}JupyterLab{% endif %} Credentials
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="card border-0 bg-light">
+            <div class="card-header bg-transparent border-0">
+              <div class="d-flex align-items-center">
+                <div class="me-3">
+                  {% if instance.instance_type == 'rstudio' %}
+                    <div class="bg-info bg-opacity-10 rounded p-2">
+                      <i class="bi bi-r-circle-fill text-info fs-5"></i>
                     </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  {% else %}
+                    <div class="bg-warning bg-opacity-10 rounded p-2">
+                      <i class="bi bi-journal-code text-warning fs-5"></i>
                     </div>
+                  {% endif %}
+                </div>
+                <div>
+                  <strong>Instance #{{ instance.id }}</strong><br>
+                  <small class="text-muted">{{ instance.container_name }}</small>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-12">
+                  <label class="form-label small text-muted mb-1">Access URL</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control form-control-sm"
+                           value="http://{{ request.url.hostname }}:{{ instance.port }}{% if instance.instance_type == 'jupyterlab' %}/lab?token={{ instance.password }}{% endif %}" readonly>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.open('http://{{ request.url.hostname }}:{{ instance.port }}{% if instance.instance_type == 'jupyterlab' %}/lab?token={{ instance.password }}{% endif %}', '_blank')">
+                      <i class="bi bi-box-arrow-up-right"></i>
+                    </button>
+                  </div>
+                </div>
+
+                {% if instance.instance_type == 'rstudio' %}
+                <div class="col-6">
+                  <label class="form-label small text-muted mb-1">Username</label>
+                  <input type="text" class="form-control form-control-sm"
+                         value="{% if '@' in instance.owner_email %}{{ instance.owner_email.split('@')[0] }}{% else %}{{ instance.owner_email }}{% endif %}" readonly>
+                </div>
+                <div class="col-6">
+                  <label class="form-label small text-muted mb-1">Password</label>
+                  <div class="input-group">
+                    <input type="password" class="form-control form-control-sm" id="password-{{ instance.id }}"
+                           value="{{ instance.password if instance.password else 'N/A' }}" readonly>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePassword('password-{{ instance.id }}')">
+                      <i class="bi bi-eye" id="eye-password-{{ instance.id }}"></i>
+                    </button>
+                  </div>
+                </div>
+                {% else %}
+                <div class="col-12">
+                  <label class="form-label small text-muted mb-1">Access Token</label>
+                  <div class="input-group">
+                    <input type="password" class="form-control form-control-sm" id="token-{{ instance.id }}"
+                           value="{{ instance.password if instance.password else 'N/A' }}" readonly>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePassword('token-{{ instance.id }}')">
+                      <i class="bi bi-eye" id="eye-token-{{ instance.id }}"></i>
+                    </button>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+
+              <hr class="my-3">
+
+              <div class="row g-2 small">
+                <div class="col-6">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-memory text-primary me-2"></i>
+                    <span>{{ instance.memory_limit or 'N/A' }} RAM</span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-cpu text-success me-2"></i>
+                    <span>{{ instance.cpu_limit or 'N/A' }} CPU</span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-hdd text-info me-2"></i>
+                    <span>{{ instance.storage_limit or 'N/A' }} Storage</span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-calendar-week text-warning me-2"></i>
+                    <span>{{ instance.session_days or 'N/A' }} days</span>
                   </div>
                 </div>
               </div>
-            {% else %}
-              <span class="text-muted">N/A</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if instance.status == 'running' or instance.status == 'requested'
-            or instance.status == 'error' %}
-            <form
-              method="post"
-              action="{{ url_for('stop_instance_action', instance_id=instance.id) }}"
-              style="display: inline"
-            >
-              <button type="submit" class="btn btn-warning btn-sm">Stop</button>
-            </form>
-            {% endif %} {% if instance.status == 'stopped' or instance.status ==
-            'error' %}
-            <form
-              method="post"
-              action="{{ url_for('delete_instance', instance_id=instance.id) }}"
-              style="display: inline"
-              onsubmit="return confirm('Are you sure you want to delete this instance? This action cannot be undone.');"
-            >
-              <button type="submit" class="btn btn-danger btn-sm">
-                Delete
-              </button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
-  {% else %}
-  <p>No RStudio instances found.</p>
   {% endif %}
+  {% endfor %}
 
   <!-- All Users Table -->
-  <h2 class="mt-5">All Users</h2>
-  {% if users %}
-  <div class="table-responsive">
-    <table class="table table-striped table-hover">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Email</th>
-          <th>Lab Name</th>
-          {# New Column #}
-          <th>Is Admin</th>
-          <th>Created Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for user_item in users %} {# Changed loop variable to user_item to
-        avoid conflict with global user #}
-        <tr>
-          <td>{{ user_item.id }}</td>
-          <td>{{ user_item.email }}</td>
-          <td>{{ user_item.lab_name }}</td>
-          {# Display Lab Name #}
-          <td>
-            <span
-              class="badge {% if user_item.is_admin %}bg-primary{% else %}bg-secondary{% endif %}"
-              >{{ 'Yes' if user_item.is_admin else 'No' }}</span
-            >
-          </td>
-          <td>
-            {{ user_item.created_at.strftime('%Y-%m-%d %H:%M:%S') if
-            user_item.created_at else 'N/A' }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h3 class="mb-1"><i class="bi bi-people text-primary me-2"></i>Platform Users</h3>
+          <p class="text-muted mb-0">All registered users and their access levels</p>
+        </div>
+        <div>
+          <span class="badge bg-primary bg-opacity-10 text-primary fs-6">
+            {{ users|selectattr("is_admin", "equalto", 1)|list|length }} Admins
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      {% if users %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="border-0 ps-4">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-hash text-muted me-2"></i>ID
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-envelope text-muted me-2"></i>User
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-building text-muted me-2"></i>Lab
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-shield text-muted me-2"></i>Role
+                </div>
+              </th>
+              <th class="border-0">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-calendar-plus text-muted me-2"></i>Joined
+                </div>
+              </th>
+              <th class="border-0 pe-4">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-activity text-muted me-2"></i>Activity
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user_item in users %}
+            <tr>
+              <td class="ps-4">
+                <span class="badge bg-light text-dark border">#{{ user_item.id }}</span>
+              </td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="bg-{{ 'primary' if user_item.is_admin else 'secondary' }} bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3"
+                       style="width: 32px; height: 32px;">
+                    <i class="bi bi-{{ 'shield-check' if user_item.is_admin else 'person' }}-fill text-{{ 'primary' if user_item.is_admin else 'secondary' }}"></i>
+                  </div>
+                  <div>
+                    <div class="fw-medium">{{ user_item.email.split('@')[0] if '@' in user_item.email else user_item.email }}</div>
+                    <small class="text-muted">{{ user_item.email }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-info bg-opacity-20 text-dark border">{{ user_item.lab_name or 'N/A' }}</span>
+              </td>
+              <td>
+                <span class="badge rounded-pill fs-6 {% if user_item.is_admin %}bg-primary{% else %}bg-secondary{% endif %}">
+                  <i class="bi bi-{{ 'shield-check' if user_item.is_admin else 'person' }} me-1"></i>
+                  {{ 'Administrator' if user_item.is_admin else 'User' }}
+                </span>
+              </td>
+              <td>
+                <div class="text-muted">
+                  {{ user_item.created_at.strftime('%m/%d/%y') if user_item.created_at else 'N/A' }}<br>
+                  <small>{{ user_item.created_at.strftime('%H:%M') if user_item.created_at else '' }}</small>
+                </div>
+              </td>
+              <td class="pe-4">
+                {% set user_instances = instances|selectattr("user_id", "equalto", user_item.id)|list %}
+                {% set running_instances = user_instances|selectattr("status", "equalto", "running")|list %}
+
+                <div class="d-flex align-items-center gap-2">
+                  {% if running_instances|length > 0 %}
+                    <span class="badge bg-success text-white">
+                      <i class="bi bi-circle-fill me-1" style="font-size: 0.5em;"></i>
+                      {{ running_instances|length }} Active
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary text-white">
+                      <i class="bi bi-circle me-1" style="font-size: 0.5em;"></i>
+                      Idle
+                    </span>
+                  {% endif %}
+
+                  {% if user_instances|length > 0 %}
+                    <small class="text-dark fw-medium">{{ user_instances|length }} total</small>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <div class="mb-3">
+          <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
+        </div>
+        <h5 class="text-muted">No users found</h5>
+        <p class="text-muted mb-0">No users have been registered yet.</p>
+      </div>
+      {% endif %}
+    </div>
   </div>
-  {% else %}
-  <p>No users found.</p>
-  {% endif %}
 </div>
+
+<script>
+// Status filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const filterButtons = document.querySelectorAll('input[name="statusFilter"]');
+    const instanceRows = document.querySelectorAll('.instance-row');
+
+    filterButtons.forEach(button => {
+        button.addEventListener('change', function() {
+            const filterValue = this.id.replace('filter', '').toLowerCase();
+
+            instanceRows.forEach(row => {
+                const status = row.getAttribute('data-status');
+
+                if (filterValue === 'all' || status === filterValue) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    });
+});
+
+// Password visibility toggle
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const eye = document.getElementById('eye-' + fieldId);
+
+    if (field.type === 'password') {
+        field.type = 'text';
+        eye.className = 'bi bi-eye-slash';
+    } else {
+        field.type = 'password';
+        eye.className = 'bi bi-eye';
+    }
+}
+</script>
+
 {% endblock %}

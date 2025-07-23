@@ -1,36 +1,131 @@
 {% extends "base.html" %} {% block title %}Dashboard - {{ user.email }}{%
 endblock %} {% block content %}
 <div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Welcome, {{  user.email }}!</h2>
-    {% if user.is_admin %}
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary"
-      >Admin Dashboard</a
-    >
-    {% endif %}
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h2>Welcome, {{ user.email }}!</h2>
+      {% if user.lab_name %}
+      <p class="text-muted mb-0">
+        <i class="bi bi-building me-1"></i>{{ user.lab_name }}
+      </p>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      {% if user.is_admin %}
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary"
+        >Admin Dashboard</a
+      >
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Lab Selection Section -->
+  {% if not user.lab_name %}
+  <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>
+      <strong>Action Required:</strong> Please select your lab to continue using the platform.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card mb-2">
+    <div class="card-body py-2">
+      <div class="row align-items-center">
+        <div class="col-md-3">
+          <label for="user_lab_select" class="form-label mb-2 mb-md-0">
+            <i class="bi bi-building me-1"></i><strong>Your Lab:</strong>
+          </label>
+        </div>
+        <div class="col-md-6">
+          <select class="form-select" id="user_lab_select" onchange="updateUserLab(this.value)">
+            <option value="">{% if user.lab_name %}Change your lab...{% else %}Select your lab...{% endif %}</option>
+            {% for lab in lab_names %}
+            <option value="{{ lab }}" {% if user.lab_name == lab %}selected{% endif %}>{{ lab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div id="lab_save_status" class="text-muted small mt-2 mt-md-0"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Status -->
+  <div class="alert {% if current_sessions >= max_sessions %}alert-warning{% else %}alert-info{% endif %}" role="alert">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+      <div>
+        <strong>System Status:</strong>
+        {{ current_sessions }}/{{ max_sessions }} sessions currently running
+        {% if current_sessions >= max_sessions %}
+        <br><small class="text-muted">System capacity reached. You may need to wait for another user to stop their session.</small>
+        {% elif current_sessions >= (max_sessions * 0.8) %}
+        <br><small class="text-muted">System is approaching capacity.</small>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
   <div class="row">
     <div class="col-md-6">
-      <div class="card mb-4">
+      <div class="card mb-2">
         <div class="card-body">
           <div class="d-flex align-items-center mb-3">
             <img src="{{ url_for('static', path='images/rstudio.png') }}" alt="RStudio Logo" class="me-3" style="width: 48px; height: 48px; object-fit: contain;">
             <h5 class="card-title mb-0">Request New RStudio Session</h5>
           </div>
-          <p class="card-text">
-            CPU: {{ cpu_limit }}, Memory: {{ memory_limit }}, Storage:
-            {{ storage_limit }}
-          </p>
+
           <form
             action="{{ url_for('request_rstudio_instance') }}"
             method="post"
             onsubmit="showLoading(this, 'Requesting RStudio Instance...')"
           >
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-plus-circle-fill me-2"></i>Request RStudio
-              Instance
+            <!-- Resource Configuration -->
+            <div class="row mb-3">
+              <div class="col-md-3">
+                <label for="rstudio_memory" class="form-label"><small><i class="bi bi-memory me-1"></i>RAM (GB)</small></label>
+                <select class="form-select form-select-sm" id="rstudio_memory" name="memory_limit">
+                  <option value="8g">8 GB</option>
+                  <option value="16g" selected>16 GB</option>
+                  <option value="32g">32 GB</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="rstudio_cpu" class="form-label"><small><i class="bi bi-cpu-fill me-1"></i>vCPUs</small></label>
+                <select class="form-select form-select-sm" id="rstudio_cpu" name="cpu_limit">
+                  <option value="1.0">1 vCPU</option>
+                  <option value="2.0" selected>2 vCPUs</option>
+                  <option value="4.0">4 vCPUs</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="rstudio_storage" class="form-label"><small><i class="bi bi-hdd-fill me-1"></i>Storage</small></label>
+                <select class="form-select form-select-sm" id="rstudio_storage" name="storage_limit">
+                  <option value="64G">64 GB</option>
+                  <option value="128G" selected>128 GB</option>
+                  <option value="256G">256 GB</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="rstudio_session_days" class="form-label"><small><i class="bi bi-calendar-week me-1"></i>Duration</small></label>
+                <select class="form-select form-select-sm" id="rstudio_session_days" name="session_days">
+                  <option value="1">1 Day</option>
+                  <option value="2" selected>2 Days</option>
+                  <option value="7">7 Days</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" {% if current_sessions >= max_sessions %}disabled{% endif %}>
+              <i class="bi bi-plus-circle-fill me-2"></i>Request RStudio Instance
             </button>
+            {% if current_sessions >= max_sessions %}
+            <small class="text-muted d-block mt-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>System at capacity. Please wait for a slot to become available.
+            </small>
+            {% endif %}
           </form>
         </div>
       </div>
@@ -42,19 +137,56 @@ endblock %} {% block content %}
             <img src="{{ url_for('static', path='images/jupyter.png') }}" alt="Jupyter Logo" class="me-3" style="width: 48px; height: 48px; object-fit: contain;">
             <h5 class="card-title mb-0">Request New JupyterLab Session</h5>
           </div>
-          <p class="card-text">
-            CPU: {{ jupyter_cpu_limit }}, Memory: {{ jupyter_memory_limit }},
-            Storage: {{ storage_limit }}
-          </p>
+
           <form
             action="{{ url_for('request_jupyterlab_instance') }}"
             method="post"
             onsubmit="showLoading(this, 'Requesting JupyterLab Instance...')"
           >
-            <button type="submit" class="btn btn-success">
-              <i class="bi bi-plus-circle-fill me-2"></i>Request JupyterLab
-              Instance
+            <!-- Resource Configuration -->
+            <div class="row mb-3">
+              <div class="col-md-3">
+                <label for="jupyter_memory" class="form-label"><small><i class="bi bi-memory me-1"></i>RAM (GB)</small></label>
+                <select class="form-select form-select-sm" id="jupyter_memory" name="memory_limit">
+                  <option value="8g">8 GB</option>
+                  <option value="16g" selected>16 GB</option>
+                  <option value="32g">32 GB</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="jupyter_cpu" class="form-label"><small><i class="bi bi-cpu-fill me-1"></i>vCPUs</small></label>
+                <select class="form-select form-select-sm" id="jupyter_cpu" name="cpu_limit">
+                  <option value="1.0">1 vCPU</option>
+                  <option value="2.0" selected>2 vCPUs</option>
+                  <option value="4.0">4 vCPUs</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="jupyter_storage" class="form-label"><small><i class="bi bi-hdd-fill me-1"></i>Storage</small></label>
+                <select class="form-select form-select-sm" id="jupyter_storage" name="storage_limit">
+                  <option value="64G">64 GB</option>
+                  <option value="128G" selected>128 GB</option>
+                  <option value="256G">256 GB</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="jupyter_session_days" class="form-label"><small><i class="bi bi-calendar-week me-1"></i>Duration</small></label>
+                <select class="form-select form-select-sm" id="jupyter_session_days" name="session_days">
+                  <option value="1">1 Day</option>
+                  <option value="2" selected>2 Days</option>
+                  <option value="7">7 Days</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-success" {% if current_sessions >= max_sessions %}disabled{% endif %}>
+              <i class="bi bi-plus-circle-fill me-2"></i>Request JupyterLab Instance
             </button>
+            {% if current_sessions >= max_sessions %}
+            <small class="text-muted d-block mt-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>System at capacity. Please wait for a slot to become available.
+            </small>
+            {% endif %}
           </form>
         </div>
       </div>
@@ -64,7 +196,7 @@ endblock %} {% block content %}
   <h2 class="mt-5">Your Active Sessions</h2>
   <div class="card">
     <div class="card-header">
-      <h3>Your RStudio and JupyterLab Instances</h3>
+      <h3>Your Running RStudio and JupyterLab Instances</h3>
     </div>
     <div class="card-body">
       {% if instances %}
@@ -77,8 +209,8 @@ endblock %} {% block content %}
               <th>Status</th>
               <th>Created At</th>
               <th>Expires At</th>
-              <th>Stopped At</th>
               <th>Type</th>
+              <th>Resources</th>
               <th class="text-center">Actions</th>
             </tr>
           </thead>
@@ -89,10 +221,10 @@ endblock %} {% block content %}
               <td>{{ instance.port }}</td>
               <td>
                 <span
-                  class="badge rounded-pill {% if instance.status == 'running' %}bg-success {% elif instance.status == 'requested' %}bg-warning text-dark {% elif instance.status == 'stopped' %}bg-secondary {% elif instance.status == 'error' %}bg-danger {% else %}bg-light text-dark {% endif %}"
+                  class="badge rounded-pill bg-success"
                   style="font-size: 0.9em"
                 >
-                  {{ instance.status | capitalize }}
+                  <i class="bi bi-play-circle-fill me-1"></i>Running
                 </span>
               </td>
               <td>
@@ -102,15 +234,19 @@ endblock %} {% block content %}
                 {{ instance.expires_at if instance.expires_at else 'N/A' }}
               </td>
               <td>
-                {{ instance.stopped_at if instance.stopped_at else 'N/A' }} UTC
-              </td>
-              <td>
                 <span class="badge bg-info">
                   {{ instance.instance_type | default('rstudio') | capitalize }}
                 </span>
               </td>
+              <td>
+                <small class="text-muted">
+                  <div>{{ instance.memory_limit or 'N/A' }} RAM</div>
+                  <div>{{ instance.cpu_limit or 'N/A' }} CPU</div>
+                  <div>{{ instance.storage_limit or 'N/A' }} Storage</div>
+                  <div>{{ instance.session_days or 'N/A' }} days</div>
+                </small>
+              </td>
               <td class="text-center">
-                {% if instance.status == 'running' %}
                 <div class="d-flex justify-content-center align-items-center">
                   {% if instance.instance_type == 'rstudio' %}
                   <a
@@ -142,7 +278,7 @@ endblock %} {% block content %}
                       class="btn btn-danger btn-sm me-1"
                       title="Stop Instance"
                     >
-                      <i class="bi bi-stop-circle"></i> Stop
+                      <i class="bi bi-stop-circle"></i> Kill
                     </button>
                   </form>
                   <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#credentials-{{ instance.id }}">
@@ -184,15 +320,15 @@ endblock %} {% block content %}
                         <ul class="list-group list-group-flush mb-3">
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-memory me-2 text-primary"></i>Memory:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ memory_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.memory_limit or memory_limit }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-cpu-fill me-2 text-primary"></i>CPUs:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ cpu_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.cpu_limit or cpu_limit }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-hdd-fill me-2 text-primary"></i>Storage:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ storage_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.storage_limit or storage_limit }}</span>
                           </li>
                         </ul>
                         <p class="text-muted small mt-2 mb-0">
@@ -221,15 +357,15 @@ endblock %} {% block content %}
                         <ul class="list-group list-group-flush mb-3">
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-memory me-2 text-primary"></i>Memory:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ jupyter_memory_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.memory_limit or jupyter_memory_limit }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-cpu-fill me-2 text-primary"></i>CPUs:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ jupyter_cpu_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.cpu_limit or jupyter_cpu_limit }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-hdd-fill me-2 text-primary"></i>Storage:</span>
-                            <span class="badge bg-light text-dark rounded-pill">{{ storage_limit }}</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ instance.storage_limit or storage_limit }}</span>
                           </li>
                         </ul>
                         <p class="text-muted small mt-2 mb-0">
@@ -243,19 +379,7 @@ endblock %} {% block content %}
                     </div>
                   </div>
                 </div>
-                {% elif instance.status == 'requested' %}
-                <span class="text-muted fst-italic">Processing...</span>
-                <div
-                  class="spinner-border spinner-border-sm text-secondary ms-2"
-                  role="status"
-                >
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-                {% elif instance.status == 'stopped' or instance.status ==
-                'expired' or instance.status == 'error' %} {# Delete button
-                removed for non-admin dashboard #} {% else %}
-                <span class="text-muted">N/A</span>
-                {% endif %}
+              </td>
               </td>
             </tr>
             {% endfor %}
@@ -264,11 +388,17 @@ endblock %} {% block content %}
       </div>
       {% else %}
       <div class="text-center py-5">
-        <i class="bi bi-info-circle display-4 text-muted mb-3"></i>
-        <p class="lead">You have no RStudio or JupyterLab instances.</p>
+        <i class="bi bi-laptop display-4 text-muted mb-3"></i>
+        <p class="lead">No active sessions running</p>
         <p>
           Click the "Request New RStudio Instance" or "Request New JupyterLab Instance" button above to get started.
         </p>
+        {% if user.is_admin %}
+        <small class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          As an admin, you can view all session history (including stopped sessions) in the <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>.
+        </small>
+        {% endif %}
       </div>
       {% endif %}
     </div>
@@ -306,6 +436,12 @@ endblock %} {% block content %}
 {% block scripts %}
 <script>
   function showLoading(form, message) {
+    // Check if the submit button is disabled (system at capacity)
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton && submitButton.disabled) {
+      return false; // Prevent form submission
+    }
+
     // Show global overlay
     var overlay = document.getElementById("global-loading-overlay");
     if (overlay) {
@@ -344,5 +480,54 @@ endblock %} {% block content %}
       icon.classList.add('bi-eye');
     }
   }
+
+  // Auto-save lab selection
+  function updateUserLab(labName) {
+    if (!labName) return; // Don't save empty selection
+
+    const statusDiv = document.getElementById('lab_save_status');
+    statusDiv.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Saving...';
+    statusDiv.className = 'text-primary small mt-2 mt-md-0';
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('lab_name', labName);
+
+    // Send POST request
+    fetch('/select-lab', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        statusDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i>Saved!';
+        statusDiv.className = 'text-success small mt-2 mt-md-0';
+
+        // Refresh page after short delay to update the UI
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + (data.error || 'Error saving');
+        statusDiv.className = 'text-danger small mt-2 mt-md-0';
+      }
+    })
+    .catch(error => {
+      statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Error saving';
+      statusDiv.className = 'text-danger small mt-2 mt-md-0';
+      console.error('Error:', error);
+    });
+  }
 </script>
+<style>
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
 {% endblock %} {% endblock %}

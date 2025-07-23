@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Form, status, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -22,15 +22,16 @@ from app.core.config import (
     RSTUDIO_DEFAULT_MEMORY,
     RSTUDIO_DEFAULT_CPUS,
     RSTUDIO_DOCKER_IMAGE,
-    RSTUDIO_SESSION_EXPIRY_DAYS,
     JUPYTER_DOCKER_IMAGE,
     JUPYTER_MIN_PORT,
     JUPYTER_MAX_PORT,
     JUPYTER_DEFAULT_MEMORY,
     JUPYTER_DEFAULT_CPUS,
-    JUPYTER_SESSION_EXPIRY_DAYS,
     INITIAL_ADMIN_USERNAME,  # Used for admin detection
     RSTUDIO_USER_STORAGE_LIMIT,
+    MAX_CONCURRENT_SESSIONS,
+    DEFAULT_SESSION_DAYS,
+    LAB_NAMES,
 )
 from app.db.database import get_db, init_db
 from app.auth.security import (
@@ -122,10 +123,10 @@ async def request_otp_action(request: Request, email: str = Form(...)):
             if user_count == 0 or email.lower() == INITIAL_ADMIN_USERNAME.lower():
                 is_admin_val = 1
 
-            # Create user account with default lab
+            # Create user account with no lab initially - user will select lab on first login
             cursor.execute(
                 "INSERT INTO users (email, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?)",
-                (email, is_admin_val, datetime.now(timezone.utc), "General"),
+                (email, is_admin_val, datetime.now(timezone.utc), None),
             )
             db.commit()
             logger.info(f"Auto-registered new user: {email}")
@@ -234,11 +235,29 @@ async def verify_otp_action(
 async def dashboard(
     request: Request, current_user: dict = Depends(get_current_active_user)
 ):  # Uses imported get_current_active_user
+
     db = get_db()  # Uses imported get_db
-    raw_instances = db.execute(  # Renamed to raw_instances
-        "SELECT * FROM user_instances WHERE user_id = ? ORDER BY created_at DESC",
-        (current_user["id"],),
-    ).fetchall()
+
+    # For non-admin users, only show running sessions
+    # For admin users in the admin dashboard, show all sessions
+    if current_user["is_admin"]:
+        # Admin users can see all their sessions on their personal dashboard too
+        raw_instances = db.execute(  # Renamed to raw_instances
+            "SELECT * FROM user_instances WHERE user_id = ? ORDER BY created_at DESC",
+            (current_user["id"],),
+        ).fetchall()
+    else:
+        # Regular users only see running sessions
+        raw_instances = db.execute(
+            "SELECT * FROM user_instances WHERE user_id = ? AND status = 'running' ORDER BY created_at DESC",
+            (current_user["id"],),
+        ).fetchall()
+
+    # Get current session count for display before closing db
+    current_running_sessions = db.execute(
+        "SELECT COUNT(*) as count FROM user_instances WHERE status = 'running'"
+    ).fetchone()["count"]
+
     db.close()
 
     processed_instances = []
@@ -293,13 +312,77 @@ async def dashboard(
             "storage_limit": RSTUDIO_USER_STORAGE_LIMIT,  # Uses imported RSTUDIO_USER_STORAGE_LIMIT
             "jupyter_memory_limit": JUPYTER_DEFAULT_MEMORY,  # Uses imported JUPYTER_DEFAULT_MEMORY
             "jupyter_cpu_limit": JUPYTER_DEFAULT_CPUS,  # Uses imported JUPYTER_DEFAULT_CPUS
+            "current_sessions": current_running_sessions,  # Current running sessions
+            "max_sessions": MAX_CONCURRENT_SESSIONS,  # Maximum allowed sessions
+            "default_session_days": DEFAULT_SESSION_DAYS,  # Default session duration
+            "lab_names": LAB_NAMES,  # Available lab names for selection
         },
     )
 
 
+@app.get("/select-lab", response_class=HTMLResponse)
+async def select_lab_page(
+    request: Request, current_user: dict = Depends(get_current_active_user)
+):
+    """Show lab selection page for new users"""
+    return templates.TemplateResponse(
+        "select_lab.html",
+        {
+            "request": request,
+            "user": current_user,
+            "lab_names": LAB_NAMES,
+            "title": "Select Your Lab",
+        },
+    )
+
+
+@app.post("/select-lab")
+async def select_lab(
+    request: Request,
+    current_user: dict = Depends(get_current_active_user),
+    lab_name: str = Form(...),
+):
+    """Handle lab selection for users"""
+    if lab_name not in LAB_NAMES:
+        return JSONResponse(
+            content={"success": False, "error": "Invalid lab selection"},
+            status_code=400,
+        )
+
+    # Update user's lab selection
+    db = get_db()
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "UPDATE users SET lab_name = ? WHERE id = ?",
+            (lab_name, current_user["id"]),
+        )
+        db.commit()
+
+        return JSONResponse(
+            content={"success": True, "message": f"Lab updated to {lab_name}"}
+        )
+
+    except sqlite3.Error as e:
+        logger.error(f"Error updating lab for user {current_user['email']}: {str(e)}")
+        db.rollback()
+
+        return JSONResponse(
+            content={"success": False, "error": "Database error occurred"},
+            status_code=500,
+        )
+    finally:
+        db.close()
+
+
 @app.post("/request_rstudio")
 async def request_rstudio_instance(
-    request: Request, current_user: dict = Depends(get_current_active_user)
+    request: Request,
+    current_user: dict = Depends(get_current_active_user),
+    memory_limit: str = Form(RSTUDIO_DEFAULT_MEMORY),
+    cpu_limit: str = Form(RSTUDIO_DEFAULT_CPUS),
+    storage_limit: str = Form(RSTUDIO_USER_STORAGE_LIMIT),
+    session_days: int = Form(DEFAULT_SESSION_DAYS),
 ):  # Uses imported get_current_active_user
     db = get_db()  # Uses imported get_db
     # Check if user already has a running or requested instance
@@ -329,6 +412,23 @@ async def request_rstudio_instance(
         # E501: Line shortened
         return RedirectResponse(
             url=f"/dashboard?message={encoded_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    # Check global session limit
+    total_running_sessions = db.execute(
+        "SELECT COUNT(*) as count FROM user_instances WHERE status = 'running'"
+    ).fetchone()["count"]
+
+    if total_running_sessions >= MAX_CONCURRENT_SESSIONS:
+        db.close()
+        message = (
+            f"System capacity reached. Currently {total_running_sessions}/{MAX_CONCURRENT_SESSIONS} sessions are running. "
+            "Please wait for another user to stop their session before requesting a new one."
+        )
+        encoded_message = quote(message)
+        return RedirectResponse(
+            url=f"/dashboard?error={encoded_message}",
             status_code=status.HTTP_302_FOUND,
         )
 
@@ -370,8 +470,8 @@ async def request_rstudio_instance(
     cursor = db.cursor()
     cursor.execute(
         """INSERT INTO user_instances
-           (user_id, container_name, port, password, status, instance_type)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (user_id, container_name, port, password, status, instance_type, memory_limit, cpu_limit, storage_limit, session_days)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             current_user["id"],
             container_name,
@@ -379,6 +479,10 @@ async def request_rstudio_instance(
             rstudio_password,
             "requested",
             "rstudio",
+            memory_limit,
+            cpu_limit,
+            storage_limit,
+            session_days,
         ),
     )
     db.commit()
@@ -398,9 +502,9 @@ async def request_rstudio_instance(
             "--name",
             container_name,
             "--memory",
-            RSTUDIO_DEFAULT_MEMORY,  # Use imported RSTUDIO_DEFAULT_MEMORY
+            memory_limit,  # Use custom memory limit
             "--cpus",
-            RSTUDIO_DEFAULT_CPUS,  # Use imported RSTUDIO_DEFAULT_CPUS
+            cpu_limit,  # Use custom CPU limit
             "-e",
             f"PASSWORD={rstudio_password}",
             "-v",
@@ -434,7 +538,7 @@ async def request_rstudio_instance(
                    WHERE id = ?""",
                 (
                     container_id_short,
-                    f"+{RSTUDIO_SESSION_EXPIRY_DAYS} days",  # Use imported RSTUDIO_SESSION_EXPIRY_DAYS
+                    f"+{session_days} days",  # Use custom session_days
                     instance_id,
                 ),
             )
@@ -499,7 +603,12 @@ async def request_rstudio_instance(
 
 @app.post("/request_jupyterlab")
 async def request_jupyterlab_instance(
-    request: Request, current_user: dict = Depends(get_current_active_user)
+    request: Request,
+    current_user: dict = Depends(get_current_active_user),
+    memory_limit: str = Form(JUPYTER_DEFAULT_MEMORY),
+    cpu_limit: str = Form(JUPYTER_DEFAULT_CPUS),
+    storage_limit: str = Form(RSTUDIO_USER_STORAGE_LIMIT),
+    session_days: int = Form(DEFAULT_SESSION_DAYS),
 ):  # Uses imported get_current_active_user
     db = get_db()  # Uses imported get_db
     existing_instance_row = db.execute(
@@ -530,6 +639,23 @@ async def request_jupyterlab_instance(
         # E501: Line shortened
         return RedirectResponse(
             url=f"/dashboard?message={encoded_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    # Check global session limit
+    total_running_sessions = db.execute(
+        "SELECT COUNT(*) as count FROM user_instances WHERE status = 'running'"
+    ).fetchone()["count"]
+
+    if total_running_sessions >= MAX_CONCURRENT_SESSIONS:
+        db.close()
+        message = (
+            f"System capacity reached. Currently {total_running_sessions}/{MAX_CONCURRENT_SESSIONS} sessions are running. "
+            "Please wait for another user to stop their session before requesting a new one."
+        )
+        encoded_message = quote(message)
+        return RedirectResponse(
+            url=f"/dashboard?error={encoded_message}",
             status_code=status.HTTP_302_FOUND,
         )
 
@@ -567,8 +693,8 @@ async def request_jupyterlab_instance(
     cursor = db.cursor()
     cursor.execute(
         """INSERT INTO user_instances
-           (user_id, container_name, port, password, status, instance_type)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (user_id, container_name, port, password, status, instance_type, memory_limit, cpu_limit, storage_limit, session_days)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             current_user["id"],
             container_name,
@@ -576,6 +702,10 @@ async def request_jupyterlab_instance(
             jupyter_token,
             "requested",
             "jupyterlab",
+            memory_limit,
+            cpu_limit,
+            storage_limit,
+            session_days,
         ),
     )
     db.commit()
@@ -592,9 +722,9 @@ async def request_jupyterlab_instance(
             "--name",
             container_name,
             "--memory",
-            JUPYTER_DEFAULT_MEMORY,  # Use imported JUPYTER_DEFAULT_MEMORY
+            memory_limit,  # Use custom memory limit
             "--cpus",
-            JUPYTER_DEFAULT_CPUS,  # Use imported JUPYTER_DEFAULT_CPUS
+            cpu_limit,  # Use custom CPU limit
             "-e",
             f"JUPYTER_TOKEN={jupyter_token}",  # Pass the token
             "-e",
@@ -652,7 +782,7 @@ async def request_jupyterlab_instance(
                    WHERE id = ?""",
                 (
                     container_id_short,
-                    f"+{JUPYTER_SESSION_EXPIRY_DAYS} days",  # Use imported JUPYTER_SESSION_EXPIRY_DAYS
+                    f"+{session_days} days",  # Use custom session_days
                     instance_id,
                 ),
             )

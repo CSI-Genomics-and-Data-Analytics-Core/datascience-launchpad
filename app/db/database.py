@@ -36,7 +36,7 @@ def init_db():
         is_admin BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME,
-        lab_name TEXT NOT NULL
+        lab_name TEXT
     )
     """
     )
@@ -54,6 +54,10 @@ def init_db():
         status TEXT DEFAULT 'requested',
         stopped_at DATETIME,
         instance_type TEXT DEFAULT 'rstudio',
+        memory_limit TEXT DEFAULT '16g',
+        cpu_limit TEXT DEFAULT '2.0',
+        storage_limit TEXT DEFAULT '200G',
+        session_days INTEGER DEFAULT 2,
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
     """
@@ -82,13 +86,86 @@ def init_db():
         )
         logger.info("Added 'instance_type' column to 'user_instances' table.")
 
+    # Add resource limit columns if they don't exist
+    if "memory_limit" not in columns:
+        cursor.execute(
+            "ALTER TABLE user_instances ADD COLUMN memory_limit TEXT DEFAULT '16g'"
+        )
+        logger.info("Added 'memory_limit' column to 'user_instances' table.")
+
+    if "cpu_limit" not in columns:
+        cursor.execute(
+            "ALTER TABLE user_instances ADD COLUMN cpu_limit TEXT DEFAULT '2.0'"
+        )
+        logger.info("Added 'cpu_limit' column to 'user_instances' table.")
+
+    if "storage_limit" not in columns:
+        cursor.execute(
+            "ALTER TABLE user_instances ADD COLUMN storage_limit TEXT DEFAULT '200G'"
+        )
+        logger.info("Added 'storage_limit' column to 'user_instances' table.")
+
+    # Add session_days column if it doesn't exist
+    if "session_days" not in columns:
+        cursor.execute(
+            "ALTER TABLE user_instances ADD COLUMN session_days INTEGER DEFAULT 2"
+        )
+        logger.info("Added 'session_days' column to 'user_instances' table.")
+
+    # Migration: Update lab_name constraint to allow NULL values
+    # Check if lab_name constraint needs to be updated (for existing databases)
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = {col[1]: col for col in cursor.fetchall()}
+
+    if "lab_name" in user_columns:
+        # Check if lab_name has NOT NULL constraint by attempting to insert NULL
+        try:
+            cursor.execute(
+                "INSERT INTO users (email, lab_name) VALUES ('test_null_check', NULL)"
+            )
+            cursor.execute("DELETE FROM users WHERE email = 'test_null_check'")
+            logger.info("lab_name column already allows NULL values.")
+        except sqlite3.IntegrityError:
+            # If we get here, lab_name has NOT NULL constraint and needs migration
+            logger.info("Migrating lab_name column to allow NULL values...")
+
+            # Backup existing data
+            cursor.execute("CREATE TEMPORARY TABLE users_backup AS SELECT * FROM users")
+
+            # Drop and recreate the users table with updated schema
+            cursor.execute("DROP TABLE users")
+            cursor.execute(
+                """
+                CREATE TABLE users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_login DATETIME,
+                    lab_name TEXT
+                )
+                """
+            )
+
+            # Restore data from backup
+            cursor.execute(
+                """
+                INSERT INTO users (id, email, is_admin, created_at, last_login, lab_name)
+                SELECT id, email, is_admin, created_at, last_login, lab_name FROM users_backup
+                """
+            )
+
+            # Drop backup table
+            cursor.execute("DROP TABLE users_backup")
+            logger.info("Successfully migrated lab_name column to allow NULL values.")
+
     # Create initial admin user if not exists
     admin_email = INITIAL_ADMIN_USERNAME
     cursor.execute("SELECT * FROM users WHERE email = ?", (admin_email,))
     if not cursor.fetchone():
         cursor.execute(
             "INSERT INTO users (email, is_admin, created_at, lab_name) VALUES (?, ?, ?, ?)",
-            (admin_email, True, datetime.now(timezone.utc), "AdminLab"),
+            (admin_email, True, datetime.now(timezone.utc), "GeDaC"),
         )
         logger.info(f"Admin user {admin_email} created.")
     conn.commit()

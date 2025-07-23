@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Select Your Lab - {{ super() }}{% endblock %}
+{% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card border-0 shadow-lg">
+        <div class="card-body p-5">
+          <div class="text-center mb-4">
+            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+              <i class="bi bi-building text-primary" style="font-size: 2rem;"></i>
+            </div>
+            {% if user.lab_name %}
+            <h2 class="mb-2">Change Your Lab</h2>
+            <p class="text-muted">Hello, <strong>{{ user.email }}</strong></p>
+            <p class="text-muted">You're currently in <strong>{{ user.lab_name }}</strong>. Select a new lab below to update your workspace.</p>
+            {% else %}
+            <h2 class="mb-2">Welcome to GeDaC Launchpad!</h2>
+            <p class="text-muted">Hello, <strong>{{ user.email }}</strong></p>
+            <p class="text-muted">Please select your lab to get started with your personalized workspace.</p>
+            {% endif %}
+          </div>
+
+          {% if error %}
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('select_lab') }}">
+            <div class="mb-4">
+              <label for="lab_name" class="form-label">
+                <i class="bi bi-building me-2"></i><strong>{% if user.lab_name %}Select Your New Lab{% else %}Select Your Lab{% endif %}</strong>
+              </label>
+              <select class="form-select form-select-lg" id="lab_name" name="lab_name" required>
+                <option value="">Choose your lab...</option>
+                {% for lab in lab_names %}
+                <option value="{{ lab }}" {% if user.lab_name == lab %}selected{% endif %}>{{ lab }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">
+                <i class="bi bi-info-circle me-1"></i>
+                {% if user.lab_name %}
+                Choose a new lab to update your workspace affiliation.
+                {% else %}
+                Choose the lab or group you're affiliated with. This helps us organize resources and access permissions.
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-check-circle me-2"></i>{% if user.lab_name %}Update Lab Selection{% else %}Continue to Dashboard{% endif %}
+              </button>
+            </div>
+
+            {% if user.lab_name %}
+            <div class="text-center mt-3">
+              <a href="/dashboard" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Cancel & Return to Dashboard
+              </a>
+            </div>
+            {% endif %}
+          </form>
+
+          <div class="text-center mt-4">
+            <small class="text-muted">
+              <i class="bi bi-shield-check me-1"></i>
+              Your lab selection helps us provide better resource management and support.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.card {
+  border-radius: 1rem;
+}
+
+.form-select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.btn-primary {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.bg-primary {
+  --bs-bg-opacity: 1;
+}
+
+.form-select-lg {
+  border-radius: 0.5rem;
+}
+</style>
+{% endblock %}
