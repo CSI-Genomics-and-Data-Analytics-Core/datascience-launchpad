@@ -1,0 +1,28 @@
+[Unit]
+Description=RStudio Session Cleanup Service
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/rstudio-portal
+ExecStart=/usr/bin/python3 /opt/rstudio-portal/scripts/cleanup_expired_instances.py
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONPATH=/opt/rstudio-portal
+Environment=DB_MOUNT_PATH=/opt/rstudio-portal
+Environment=DATABASE_FILENAME=db.sqlite3
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/rstudio-portal /var/log
+
+[Install]
+WantedBy=multi-user.target

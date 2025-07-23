@@ -1,0 +1,11 @@
+[Unit]
+Description=Run RStudio Session Cleanup every 5 minutes
+Requires=rstudio-cleanup.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=rstudio-cleanup.service
+
+[Install]
+WantedBy=timers.target
