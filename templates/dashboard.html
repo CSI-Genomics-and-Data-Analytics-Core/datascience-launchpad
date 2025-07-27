@@ -58,7 +58,7 @@ endblock %} {% block content %}
       <i class="bi bi-info-circle-fill me-2 fs-5"></i>
       <div>
         <strong>System Status:</strong>
-        {{ current_sessions }}/{{ max_sessions }} sessions currently running
+        {{ current_sessions }}/{{ max_sessions }} sessions currently running (total system capacity: 20 sessions)
         {% if current_sessions >= max_sessions %}
         <br><small class="text-muted">System capacity reached. You may need to wait for another user to stop their session.</small>
         {% elif current_sessions >= (max_sessions * 0.8) %}
