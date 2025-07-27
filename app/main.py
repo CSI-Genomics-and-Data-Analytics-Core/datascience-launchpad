@@ -512,8 +512,8 @@ async def request_rstudio_instance(
             "--rm",
             "-p",
             f"{host_port}:8787",  # Map host port to RStudio's internal port 8787
-            "-e",
-            f"USER={email_username}",  # Use email_username for the RStudio USER env variable
+            # "-e",
+            # f"USER={email_username}",  # Use email_username for the RStudio USER env variable
         ]
         cmd.append(RSTUDIO_DOCKER_IMAGE)  # Use imported RSTUDIO_DOCKER_IMAGE
 

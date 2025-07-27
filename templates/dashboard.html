@@ -305,8 +305,8 @@ endblock %} {% block content %}
                           </div>
                         </div>
                         <div class="mb-3">
-                            <label for="rstudio-username-{{ instance.id }}" class="form-label"><strong>Username:</strong></label>
-                            <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="{% if '@' in user.email %}{{ user.email.split('@')[0] }}{% else %}{{ user.email }}{% endif %}">
+                          <label for="rstudio-username-{{ instance.id }}" class="form-label"><strong>Username:</strong></label>
+                          <input type="text" readonly class="form-control-plaintext ps-2" id="rstudio-username-{{ instance.id }}" value="rstudio">
                         </div>
                         <div class="mb-3">
                             <label for="rstudio-password-{{ instance.id }}" class="form-label"><strong>Password:</strong></label>
