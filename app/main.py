@@ -4,6 +4,7 @@ import secrets
 import subprocess
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Form, status, Depends
@@ -68,6 +69,62 @@ logger = logging.getLogger(__name__)  # Keep logger setup
 
 # Call init_db from the imported module at startup
 init_db()
+
+
+# --- Helper Functions ---
+
+
+def ensure_user_data_directory(user_dir: Path) -> bool:
+    """
+    Ensure a user data directory exists with proper permissions (755).
+    
+    Creates the directory if it doesn't exist and sets permissions to 755
+    (rwxr-xr-x) to allow owner read/write/execute and group/others read/execute.
+    Also fixes permissions if the directory exists but has wrong permissions.
+    
+    Args:
+        user_dir: Path to the user-specific data directory to create/ensure
+        
+    Returns:
+        True if directory exists with correct permissions, False otherwise
+    """
+    try:
+        # Ensure parent directory exists first
+        user_dir.parent.mkdir(parents=True, exist_ok=True)
+        # Create user-specific directory if it doesn't exist
+        user_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set explicit permissions to 755 (rwxr-xr-x)
+        # This ensures owner can read/write/execute, group/others can read/execute
+        os.chmod(user_dir, 0o755)
+        
+        # Verify permissions were set correctly (optional, for debugging)
+        current_mode = user_dir.stat().st_mode & 0o777
+        if current_mode != 0o755:
+            logging.warning(
+                f"Directory '{user_dir}' permissions are {oct(current_mode)} instead of expected 0o755. "
+                f"Attempted to set to 0o755 but may have been limited by umask or parent directory permissions."
+            )
+        
+        logging.info(f"Successfully ensured user data directory '{user_dir}' with permissions 755")
+        return True
+        
+    except PermissionError as perm_err:
+        logging.error(
+            f"Permission denied creating/fixing user data directory '{user_dir}': {perm_err}"
+        )
+        return False
+    except OSError as os_err:
+        logging.error(
+            f"OS error creating/fixing user data directory '{user_dir}': {os_err}"
+        )
+        return False
+    except Exception as e:
+        logging.error(
+            f"Unexpected error ensuring user data directory '{user_dir}': {e}",
+            exc_info=True
+        )
+        return False
 
 
 # --- Routes ---
@@ -464,7 +521,31 @@ async def request_rstudio_instance(
     user_specific_data_dir = (
         USER_DATA_BASE_DIR / email_username
     )  # Uses imported USER_DATA_BASE_DIR
-    os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
+    
+    # Ensure user data directory exists with proper permissions
+    if not ensure_user_data_directory(user_specific_data_dir):
+        db.close()
+        # Safely get directory permissions info for logging
+        perm_info = "unknown"
+        try:
+            if USER_DATA_BASE_DIR.exists():
+                perm_info = oct(USER_DATA_BASE_DIR.stat().st_mode)
+            else:
+                perm_info = "does not exist"
+        except (OSError, PermissionError):
+            perm_info = "cannot access (permission denied)"
+        
+        logging.error(
+            f"Failed to ensure user data directory '{user_specific_data_dir}'. "
+            f"Parent directory '{USER_DATA_BASE_DIR}' permissions: {perm_info}"
+        )
+        error_message = quote(
+            "Permission error: Unable to create user data directory. Please contact an administrator."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
     # Store request in DB first
     cursor = db.cursor()
@@ -687,7 +768,31 @@ async def request_jupyterlab_instance(
     user_specific_data_dir = (
         USER_DATA_BASE_DIR / email_username
     )  # Uses imported USER_DATA_BASE_DIR
-    os.makedirs(user_specific_data_dir, exist_ok=True)  # Keep os.makedirs for now
+    
+    # Ensure user data directory exists with proper permissions
+    if not ensure_user_data_directory(user_specific_data_dir):
+        db.close()
+        # Safely get directory permissions info for logging
+        perm_info = "unknown"
+        try:
+            if USER_DATA_BASE_DIR.exists():
+                perm_info = oct(USER_DATA_BASE_DIR.stat().st_mode)
+            else:
+                perm_info = "does not exist"
+        except (OSError, PermissionError):
+            perm_info = "cannot access (permission denied)"
+        
+        logging.error(
+            f"Failed to ensure user data directory '{user_specific_data_dir}'. "
+            f"Parent directory '{USER_DATA_BASE_DIR}' permissions: {perm_info}"
+        )
+        error_message = quote(
+            "Permission error: Unable to create user data directory. Please contact an administrator."
+        )
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
     # Store request in DB first
     cursor = db.cursor()
