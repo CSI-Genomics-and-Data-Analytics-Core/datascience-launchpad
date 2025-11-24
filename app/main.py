@@ -76,11 +76,12 @@ init_db()
 
 def ensure_user_data_directory(user_dir: Path) -> bool:
     """
-    Ensure a user data directory exists with proper permissions (755).
+    Ensure a user data directory exists with proper permissions (755) and ownership (1000:1000).
     
     Creates the directory if it doesn't exist and sets permissions to 755
     (rwxr-xr-x) to allow owner read/write/execute and group/others read/execute.
-    Also fixes permissions if the directory exists but has wrong permissions.
+    Also sets ownership to UID 1000 (rstudio user in Docker containers).
+    Fixes permissions if the directory exists but has wrong permissions.
     
     Args:
         user_dir: Path to the user-specific data directory to create/ensure
@@ -93,6 +94,30 @@ def ensure_user_data_directory(user_dir: Path) -> bool:
         user_dir.parent.mkdir(parents=True, exist_ok=True)
         # Create user-specific directory if it doesn't exist
         user_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set ownership to UID 1000 (rstudio user in Docker containers)
+        # This is critical for RStudio containers to write to the mounted volume
+        try:
+            os.chown(user_dir, 1000, 1000)  # UID 1000, GID 1000
+            logging.info(f"Set ownership of '{user_dir}' to 1000:1000")
+        except PermissionError:
+            # If we can't chown (not running as root), try using subprocess with sudo
+            try:
+                subprocess.run(
+                    ["sudo", "chown", "-R", "1000:1000", str(user_dir)],
+                    check=False,  # Don't fail if sudo not available or fails
+                    capture_output=True,
+                    timeout=10,
+                )
+                logging.info(f"Set ownership of '{user_dir}' to 1000:1000 using sudo")
+            except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as sudo_err:
+                logging.warning(
+                    f"Could not change ownership of '{user_dir}' to 1000:1000: {sudo_err}. "
+                    "Setting permissive permissions (777) as fallback. "
+                    "You may need to manually run: sudo chown -R 1000:1000 {user_dir}"
+                )
+                # Fallback: set world-writable permissions (less secure but works)
+                os.chmod(user_dir, 0o777)
         
         # Set explicit permissions to 755 (rwxr-xr-x)
         # This ensures owner can read/write/execute, group/others can read/execute
