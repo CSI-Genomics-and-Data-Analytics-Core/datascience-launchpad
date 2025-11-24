@@ -332,7 +332,7 @@ endblock %} {% block content %}
                           </li>
                         </ul>
                         <p class="text-muted small mt-2 mb-0">
-                          <i class="bi bi-info-circle me-1"></i>Note: For email addresses, only the part before '@' is used as the RStudio username.
+                          <i class="bi bi-info-circle me-1"></i>Note: The RStudio username is always "rstudio". The email username part (before '@') is only used for container naming and directory paths.
                         </p>
                         {% elif instance.instance_type == 'jupyterlab' %}
                         <div class="alert alert-warning d-flex align-items-center" role="alert">
