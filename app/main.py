@@ -76,18 +76,16 @@ init_db()
 
 def ensure_user_data_directory(user_dir: Path) -> bool:
     """
-    Ensure a user data directory exists with proper permissions (755) and ownership (1000:1000).
+    Ensure a user data directory exists for RStudio containers.
     
-    Creates the directory if it doesn't exist and sets permissions to 755
-    (rwxr-xr-x) to allow owner read/write/execute and group/others read/execute.
-    Also sets ownership to UID 1000 (rstudio user in Docker containers).
-    Fixes permissions if the directory exists but has wrong permissions.
+    Creates the directory if it doesn't exist. Attempts to set ownership to UID 1000
+    (rstudio user in Docker containers) but continues if this fails.
     
     Args:
         user_dir: Path to the user-specific data directory to create/ensure
         
     Returns:
-        True if directory exists with correct permissions, False otherwise
+        True if directory exists and is usable, False otherwise
     """
     try:
         # Ensure parent directory exists first
@@ -95,60 +93,31 @@ def ensure_user_data_directory(user_dir: Path) -> bool:
         # Create user-specific directory if it doesn't exist
         user_dir.mkdir(parents=True, exist_ok=True)
         
-        # Set ownership to UID 1000 (rstudio user in Docker containers)
-        # This is critical for RStudio containers to write to the mounted volume
+        # Try to set ownership to UID 1000 (rstudio user) - only if we can
         try:
-            os.chown(user_dir, 1000, 1000)  # UID 1000, GID 1000
+            os.chown(user_dir, 1000, 1000)
+            os.chmod(user_dir, 0o755)
             logging.info(f"Set ownership of '{user_dir}' to 1000:1000")
-        except PermissionError:
-            # If we can't chown (not running as root), try using subprocess with sudo
+        except (PermissionError, OSError) as chown_err:
+            # Can't chown - try chmod to 777 as fallback
             try:
-                subprocess.run(
-                    ["sudo", "chown", "-R", "1000:1000", str(user_dir)],
-                    check=False,  # Don't fail if sudo not available or fails
-                    capture_output=True,
-                    timeout=10,
-                )
-                logging.info(f"Set ownership of '{user_dir}' to 1000:1000 using sudo")
-            except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as sudo_err:
-                logging.warning(
-                    f"Could not change ownership of '{user_dir}' to 1000:1000: {sudo_err}. "
-                    "Setting permissive permissions (777) as fallback. "
-                    "You may need to manually run: sudo chown -R 1000:1000 {user_dir}"
-                )
-                # Fallback: set world-writable permissions (less secure but works)
                 os.chmod(user_dir, 0o777)
+                logging.warning(f"Could not chown '{user_dir}': {chown_err}. Set to 777 instead.")
+            except (PermissionError, OSError):
+                # Can't even chmod - directory might still work if permissions are already OK
+                logging.warning(f"Could not change permissions on '{user_dir}'. Continuing anyway.")
         
-        # Set explicit permissions to 755 (rwxr-xr-x)
-        # This ensures owner can read/write/execute, group/others can read/execute
-        os.chmod(user_dir, 0o755)
-        
-        # Verify permissions were set correctly (optional, for debugging)
-        current_mode = user_dir.stat().st_mode & 0o777
-        if current_mode != 0o755:
-            logging.warning(
-                f"Directory '{user_dir}' permissions are {oct(current_mode)} instead of expected 0o755. "
-                f"Attempted to set to 0o755 but may have been limited by umask or parent directory permissions."
-            )
-        
-        logging.info(f"Successfully ensured user data directory '{user_dir}' with permissions 755")
+        logging.info(f"User data directory '{user_dir}' is ready")
         return True
         
     except PermissionError as perm_err:
-        logging.error(
-            f"Permission denied creating/fixing user data directory '{user_dir}': {perm_err}"
-        )
+        logging.error(f"Permission denied for user data directory '{user_dir}': {perm_err}")
         return False
     except OSError as os_err:
-        logging.error(
-            f"OS error creating/fixing user data directory '{user_dir}': {os_err}"
-        )
+        logging.error(f"OS error with user data directory '{user_dir}': {os_err}")
         return False
     except Exception as e:
-        logging.error(
-            f"Unexpected error ensuring user data directory '{user_dir}': {e}",
-            exc_info=True
-        )
+        logging.error(f"Unexpected error with user data directory '{user_dir}': {e}", exc_info=True)
         return False
 
 
